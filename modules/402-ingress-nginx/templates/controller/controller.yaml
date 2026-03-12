@@ -14,6 +14,13 @@ memory: 10Mi
 {{- $kubernetesVersion := $context.Values.global.discovery.kubernetesVersion }}
 
 {{- $resourcesRequests := $crd.spec.resourcesRequests | default dict }}
+{{- $resourcesRequestsVPA := $resourcesRequests.vpa | default dict }}
+{{- $resourcesRequestsVPA_CPU := $resourcesRequestsVPA.cpu | default dict }}
+{{- $resourcesRequestsVPA_Memory := $resourcesRequestsVPA.memory | default dict }}
+{{- $resourcesRequestsStatic := $resourcesRequests.static | default dict }}
+{{- $resourcesRequestsStaticLimits := $resourcesRequestsStatic.limits | default dict }}
+{{- $hasVPAResourceLimits := or (hasKey $resourcesRequestsVPA_CPU "limitRatio") (hasKey $resourcesRequestsVPA_Memory "limitRatio") }}
+{{- $hasStaticResourceLimits := or (hasKey $resourcesRequestsStaticLimits "cpu") (hasKey $resourcesRequestsStaticLimits "memory") }}
 {{- $geoIP2 := $crd.spec.geoIP2 | default dict }}
 {{- $geoproxyReady := $context.Values.ingressNginx.internal.geoproxyReady | default false }}
 {{- $hostPort := $crd.spec.hostPort | default dict }}
@@ -45,9 +52,6 @@ spec:
     kind: DaemonSet
     name: controller-{{ $name }}
     {{- if eq ($resourcesRequests.mode | default "") "VPA" }}
-      {{- $resourcesRequestsVPA := $resourcesRequests.vpa | default dict }}
-      {{- $resourcesRequestsVPA_CPU := $resourcesRequestsVPA.cpu | default dict }}
-      {{- $resourcesRequestsVPA_Memory := $resourcesRequestsVPA.memory | default dict }}
   updatePolicy:
     updateMode: {{ $resourcesRequestsVPA.mode | default "Initial" | quote }}
   resourcePolicy:
@@ -59,6 +63,9 @@ spec:
       maxAllowed:
         cpu: {{ $resourcesRequestsVPA_CPU.max | default "50m" | quote }}
         memory: {{ $resourcesRequestsVPA_Memory.max | default "200Mi" | quote }}
+      {{- if $hasVPAResourceLimits }}
+      controlledValues: RequestsAndLimits
+      {{- end }}
       {{- if $crd.spec.enableIstioSidecar }}
     - containerName: istio-proxy
       mode: "Off"
@@ -341,9 +348,32 @@ spec:
             cpu: "350m"
             memory: "500Mi"
   {{- else if eq ($resourcesRequests.mode | default "") "Static" }}
-    {{- $resourcesRequestsStatic := $resourcesRequests.static | default dict }}
             cpu: {{ $resourcesRequestsStatic.cpu | default "350m" | quote }}
             memory: {{ $resourcesRequestsStatic.memory | default "500Mi" | quote }}
+  {{- else if eq ($resourcesRequests.mode | default "") "VPA" }}
+            cpu: {{ $resourcesRequestsVPA_CPU.min | default "10m" | quote }}
+            memory: {{ $resourcesRequestsVPA_Memory.min | default "50Mi" | quote }}
+  {{- end }}
+  {{- if eq ($resourcesRequests.mode | default "") "Static" }}
+    {{- if $hasStaticResourceLimits }}
+          limits:
+      {{- if hasKey $resourcesRequestsStaticLimits "cpu" }}
+            cpu: {{ $resourcesRequestsStaticLimits.cpu | quote }}
+      {{- end }}
+      {{- if hasKey $resourcesRequestsStaticLimits "memory" }}
+            memory: {{ $resourcesRequestsStaticLimits.memory | quote }}
+      {{- end }}
+    {{- end }}
+  {{- else if and (eq ($resourcesRequests.mode | default "") "VPA") $hasVPAResourceLimits }}
+          limits:
+    {{- if hasKey $resourcesRequestsVPA_CPU "limitRatio" }}
+      {{- $cpuLimitMillicores := round (mulf (include "helm_lib_resources_management_cpu_units_to_millicores" ($resourcesRequestsVPA_CPU.min | default "10m")) $resourcesRequestsVPA_CPU.limitRatio) 0 | int64 }}
+            cpu: {{ printf "%dm" $cpuLimitMillicores | quote }}
+    {{- end }}
+    {{- if hasKey $resourcesRequestsVPA_Memory "limitRatio" }}
+      {{- $memoryLimitBytes := round (mulf (include "helm_lib_resources_management_memory_units_to_bytes" ($resourcesRequestsVPA_Memory.min | default "50Mi")) $resourcesRequestsVPA_Memory.limitRatio) 0 | int64 }}
+            memory: {{ printf "%d" $memoryLimitBytes | quote }}
+    {{- end }}
   {{- end }}
         ports:
         - containerPort: 80

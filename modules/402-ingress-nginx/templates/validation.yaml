@@ -2,6 +2,8 @@
 {{- $kubernetesVersion := .Values.global.discovery.kubernetesVersion }}
 ---
 {{- $policyName := "ingressnginxcontroller-settings.deckhouse.io" }}
+{{- $resourceLimitsWarningPolicyName := "ingressnginxcontroller-resource-limits-warning.deckhouse.io" }}
+{{- $deprecatedResourcesRequestsPolicyName := "ingressnginxcontroller-deprecated-resourcesrequests-fields.deckhouse.io" }}
 {{- $inlets := list "LoadBalancer"  "LoadBalancerWithProxyProtocol" "HostPort" "HostPortWithProxyProtocol" "HostWithFailover" }}
 apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicy") }}
 kind: ValidatingAdmissionPolicy
@@ -32,4 +34,102 @@ metadata:
 spec:
   policyName: {{ $policyName }}
   validationActions: [Deny]
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicy") }}
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $resourceLimitsWarningPolicyName }}
+  {{- include "helm_lib_module_labels" (list . ) | nindent 2 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["deckhouse.io"]
+        apiVersions: ["*"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["ingressnginxcontrollers"]
+  validations:
+    - expression: >-
+        !(
+          has(object.spec.resourcesManagement) &&
+          object.spec.resourcesManagement.mode == "Static" &&
+          has(object.spec.resourcesManagement.static) &&
+          has(object.spec.resourcesManagement.static.limits) &&
+          (
+            has(object.spec.resourcesManagement.static.limits.cpu) ||
+            has(object.spec.resourcesManagement.static.limits.memory)
+          )
+        )
+      message: Setting ingress-nginx controller resource limits may cause traffic interruptions under high load.
+    - expression: >-
+        !(
+          has(object.spec.resourcesManagement) &&
+          object.spec.resourcesManagement.mode == "VPA" &&
+          has(object.spec.resourcesManagement.vpa) &&
+          (
+            (has(object.spec.resourcesManagement.vpa.cpu) && has(object.spec.resourcesManagement.vpa.cpu.limitRatio)) ||
+            (has(object.spec.resourcesManagement.vpa.memory) && has(object.spec.resourcesManagement.vpa.memory.limitRatio))
+          )
+        )
+      message: Setting ingress-nginx controller resource limits may cause traffic interruptions under high load.
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicyBinding") }}
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $resourceLimitsWarningPolicyName }}
+  {{- include "helm_lib_module_labels" (list . ) | nindent 2 }}
+spec:
+  policyName: {{ $resourceLimitsWarningPolicyName }}
+  validationActions: [Warn]
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicy") }}
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $deprecatedResourcesRequestsPolicyName }}
+  {{- include "helm_lib_module_labels" (list . ) | nindent 2 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["deckhouse.io"]
+        apiVersions: ["v1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["ingressnginxcontrollers"]
+  validations:
+    - expression: >-
+        !(
+          has(object.spec.resourcesRequests) &&
+          has(object.spec.resourcesRequests.vpa) &&
+          has(object.spec.resourcesRequests.vpa.cpu) &&
+          has(object.spec.resourcesRequests.vpa.cpu.limitRatio)
+        )
+      message: '"spec.resourcesRequests.vpa.cpu.limitRatio" is deprecated and ignored in "deckhouse.io/v1"; use "spec.resourcesManagement.vpa.cpu.limitRatio" with "deckhouse.io/v2".'
+    - expression: >-
+        !(
+          has(object.spec.resourcesRequests) &&
+          has(object.spec.resourcesRequests.vpa) &&
+          has(object.spec.resourcesRequests.vpa.memory) &&
+          has(object.spec.resourcesRequests.vpa.memory.limitRatio)
+        )
+      message: '"spec.resourcesRequests.vpa.memory.limitRatio" is deprecated and ignored in "deckhouse.io/v1"; use "spec.resourcesManagement.vpa.memory.limitRatio" with "deckhouse.io/v2".'
+    - expression: >-
+        !(
+          has(object.spec.resourcesRequests) &&
+          has(object.spec.resourcesRequests.static) &&
+          has(object.spec.resourcesRequests.static.limits) &&
+          (
+            has(object.spec.resourcesRequests.static.limits.cpu) ||
+            has(object.spec.resourcesRequests.static.limits.memory)
+          )
+        )
+      message: '"spec.resourcesRequests.static.limits" is deprecated and ignored in "deckhouse.io/v1"; use "spec.resourcesManagement.static.limits" with "deckhouse.io/v2".'
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicyBinding") }}
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $deprecatedResourcesRequestsPolicyName }}
+  {{- include "helm_lib_module_labels" (list . ) | nindent 2 }}
+spec:
+  policyName: {{ $deprecatedResourcesRequestsPolicyName }}
+  validationActions: [Warn]
 {{- end }}

@@ -300,6 +300,9 @@ properties:
                               x-examples: ["200m"]
                             min:
                               type: string
+                            limitRatio:
+                              type: number
+                              x-examples: [1.5]
                         memory:
                           type: object
                           default: {}
@@ -309,6 +312,9 @@ properties:
                             min:
                               type: string
                               x-examples: ["100Mi"]
+                            limitRatio:
+                              type: number
+                              x-examples: [1.5]
                     static:
                       type: object
                       default: {}
@@ -318,6 +324,79 @@ properties:
                           x-examples: ["100m"]
                         memory:
                           type: string
+                        limits:
+                          type: object
+                          default: {}
+                          properties:
+                            cpu:
+                              type: string
+                              x-examples: ["200m"]
+                            memory:
+                              type: string
+                              x-examples: ["200Mi"]
+                resourcesManagement:
+                  type: object
+                  default: {}
+                  properties:
+                    mode:
+                      type: string
+                      x-examples: ["VPA", "Static"]
+                    vpa:
+                      type: object
+                      default: {}
+                      properties:
+                        mode:
+                          type: string
+                        cpu:
+                          type: object
+                          default: {}
+                          properties:
+                            min:
+                              type: string
+                              x-examples: ["100m"]
+                            max:
+                              type: string
+                              x-examples: ["200m"]
+                            limitRatio:
+                              type: number
+                              x-examples: [1.5]
+                        memory:
+                          type: object
+                          default: {}
+                          properties:
+                            min:
+                              type: string
+                              x-examples: ["100Mi"]
+                            max:
+                              type: string
+                              x-examples: ["200Mi"]
+                            limitRatio:
+                              type: number
+                              x-examples: [1.5]
+                    static:
+                      type: object
+                      default: {}
+                      properties:
+                        requests:
+                          type: object
+                          default: {}
+                          properties:
+                            cpu:
+                              type: string
+                              x-examples: ["100m"]
+                            memory:
+                              type: string
+                              x-examples: ["100Mi"]
+                        limits:
+                          type: object
+                          default: {}
+                          properties:
+                            cpu:
+                              type: string
+                              x-examples: ["200m"]
+                            memory:
+                              type: string
+                              x-examples: ["200Mi"]
                 customErrors:
                   type: object
                   properties:

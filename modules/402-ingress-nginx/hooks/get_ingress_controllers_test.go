@@ -92,7 +92,9 @@ spec:
   "minReplicas": 1,
   "resourcesRequests": {
     "mode": "VPA",
-    "static": {},
+    "static": {
+      "limits": {}
+    },
     "vpa": {
       "cpu": {},
       "memory": {}
@@ -142,6 +144,10 @@ spec:
   inlet: LoadBalancer
   resourcesRequests:
     mode: Static
+    static:
+      limits:
+        cpu: "1"
+        memory: 1Gi
 ---
 apiVersion: deckhouse.io/v1
 kind: IngressNginxController
@@ -156,8 +162,10 @@ spec:
       mode: Auto
       cpu:
         max: 100m
+        limitRatio: 1.5
       memory:
         max: 200Mi
+        limitRatio: 2
   hostPortWithProxyProtocol:
     httpPort: 80
     httpsPort: 443
@@ -201,7 +209,12 @@ spec:
 "controllerLogLevel": "Info",
 "resourcesRequests": {
   "mode": "Static",
-  "static": {},
+  "static": {
+    "limits": {
+      "cpu": "1",
+      "memory": "1Gi"
+    }
+  },
   "vpa": {
     "cpu": {},
     "memory": {}
@@ -239,13 +252,17 @@ spec:
 "minReplicas": 1,
 "resourcesRequests": {
   "mode": "VPA",
-  "static": {},
+  "static": {
+    "limits": {}
+  },
   "vpa": {
     "cpu": {
+      "limitRatio": 1.5,
       "max": "100m",
       "min": "10m"
     },
     "memory": {
+      "limitRatio": 2,
       "max": "200Mi",
       "min": "50Mi"
     },
@@ -279,7 +296,9 @@ spec:
 "minReplicas": 1,
 "resourcesRequests": {
   "mode": "VPA",
-  "static": {},
+  "static": {
+    "limits": {}
+  },
   "vpa": {
     "cpu": {},
     "memory": {}

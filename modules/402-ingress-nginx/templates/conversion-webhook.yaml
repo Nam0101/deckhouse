@@ -1,0 +1,158 @@
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ConversionWebhook
+metadata:
+  name: ingressnginxcontrollers.deckhouse.io
+  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}
+conversions:
+  - from: v1
+    to: v2
+    handler:
+      python: |
+        def v1_to_v2(self, o: dict) -> typing.Tuple[str | None, dict]:
+            if o.get("apiVersion") != "deckhouse.io/v1":
+                return None, o
+
+            obj = DotMap(o)
+            obj.apiVersion = "deckhouse.io/v2"
+
+            resources_requests = o.get("spec", {}).get("resourcesRequests")
+            if not resources_requests:
+                return None, obj.toDict()
+
+            resources_management = DotMap({})
+
+            if "mode" in resources_requests:
+                resources_management.mode = resources_requests["mode"]
+
+            vpa = resources_requests.get("vpa")
+            if vpa:
+                resources_management.vpa = DotMap({})
+
+                if "mode" in vpa:
+                    resources_management.vpa.mode = vpa["mode"]
+
+                cpu = vpa.get("cpu")
+                if cpu:
+                    resources_management.vpa.cpu = DotMap({})
+                    if "min" in cpu:
+                        resources_management.vpa.cpu.min = cpu["min"]
+                    if "max" in cpu:
+                        resources_management.vpa.cpu.max = cpu["max"]
+                    if "limitRatio" in cpu:
+                        resources_management.vpa.cpu.limitRatio = cpu["limitRatio"]
+
+                memory = vpa.get("memory")
+                if memory:
+                    resources_management.vpa.memory = DotMap({})
+                    if "min" in memory:
+                        resources_management.vpa.memory.min = memory["min"]
+                    if "max" in memory:
+                        resources_management.vpa.memory.max = memory["max"]
+                    if "limitRatio" in memory:
+                        resources_management.vpa.memory.limitRatio = memory["limitRatio"]
+
+            static = resources_requests.get("static")
+            if static:
+                requests = DotMap({})
+                if "cpu" in static:
+                    requests.cpu = static["cpu"]
+                if "memory" in static:
+                    requests.memory = static["memory"]
+
+                if requests:
+                    resources_management.static = DotMap({})
+                    resources_management.static.requests = requests
+
+                limits = static.get("limits")
+                if limits:
+                    if "static" not in resources_management:
+                        resources_management.static = DotMap({})
+
+                    static_limits = DotMap({})
+                    if "cpu" in limits:
+                        static_limits.cpu = limits["cpu"]
+                    if "memory" in limits:
+                        static_limits.memory = limits["memory"]
+
+                    if static_limits:
+                        resources_management.static.limits = static_limits
+
+            obj.spec.resourcesManagement = resources_management
+            del obj.spec.resourcesRequests
+
+            return None, obj.toDict()
+
+  - from: v2
+    to: v1
+    handler:
+      python: |
+        def v2_to_v1(self, o: dict) -> typing.Tuple[str | None, dict]:
+            if o.get("apiVersion") != "deckhouse.io/v2":
+                return None, o
+
+            obj = DotMap(o)
+            obj.apiVersion = "deckhouse.io/v1"
+
+            resources_management = o.get("spec", {}).get("resourcesManagement")
+            if not resources_management:
+                return None, obj.toDict()
+
+            resources_requests = DotMap({})
+
+            if "mode" in resources_management:
+                resources_requests.mode = resources_management["mode"]
+
+            vpa = resources_management.get("vpa")
+            if vpa:
+                resources_requests.vpa = DotMap({})
+
+                if "mode" in vpa:
+                    resources_requests.vpa.mode = vpa["mode"]
+
+                cpu = vpa.get("cpu")
+                if cpu:
+                    resources_requests.vpa.cpu = DotMap({})
+                    if "min" in cpu:
+                        resources_requests.vpa.cpu.min = cpu["min"]
+                    if "max" in cpu:
+                        resources_requests.vpa.cpu.max = cpu["max"]
+                    if "limitRatio" in cpu:
+                        resources_requests.vpa.cpu.limitRatio = cpu["limitRatio"]
+
+                memory = vpa.get("memory")
+                if memory:
+                    resources_requests.vpa.memory = DotMap({})
+                    if "min" in memory:
+                        resources_requests.vpa.memory.min = memory["min"]
+                    if "max" in memory:
+                        resources_requests.vpa.memory.max = memory["max"]
+                    if "limitRatio" in memory:
+                        resources_requests.vpa.memory.limitRatio = memory["limitRatio"]
+
+            static = resources_management.get("static")
+            if static:
+                requests = static.get("requests") or {}
+                static_compat = DotMap({})
+                if "cpu" in requests:
+                    static_compat.cpu = requests["cpu"]
+                if "memory" in requests:
+                    static_compat.memory = requests["memory"]
+
+                limits = static.get("limits") or {}
+                static_limits = DotMap({})
+                if "cpu" in limits:
+                    static_limits.cpu = limits["cpu"]
+                if "memory" in limits:
+                    static_limits.memory = limits["memory"]
+
+                if static_limits:
+                    static_compat.limits = static_limits
+
+                if static_compat:
+                    resources_requests.static = static_compat
+
+            obj.spec.resourcesRequests = resources_requests
+            del obj.spec.resourcesManagement
+
+            return None, obj.toDict()

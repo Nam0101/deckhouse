@@ -103,6 +103,16 @@ func applyControllerFilter(obj *unstructured.Unstructured) (go_hook.FilterResult
 	setDefaultEmptyObject("static", resourcesRequests)
 	setDefaultEmptyObject("vpa", resourcesRequests)
 
+	staticResources, _, err := unstructured.NestedMap(resourcesRequests, "static")
+	if err != nil {
+		return nil, fmt.Errorf("cannot get resourcesRequests.static from ingress controller spec: %v", err)
+	}
+	setDefaultEmptyObject("limits", staticResources)
+	err = unstructured.SetNestedMap(resourcesRequests, staticResources, "static")
+	if err != nil {
+		return nil, fmt.Errorf("cannot set resourcesRequests.static from ingress controller spec: %v", err)
+	}
+
 	vpa, _, err := unstructured.NestedMap(resourcesRequests, "vpa")
 	if err != nil {
 		return nil, fmt.Errorf("cannot get resourcesRequests.vpa from ingress controller spec: %v", err)
