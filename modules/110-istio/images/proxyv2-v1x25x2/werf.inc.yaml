@@ -15,6 +15,9 @@
   {{- $source = printf "http://%s/repository/github-com" $.DistroPackagesProxy }}
   {{- $sourceraw = printf "http://%s/repository/githubusercontent" $.DistroPackagesProxy }}
 {{- end }}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.25.2/docker/Dockerfile.base
 #      and https://github.com/istio/istio/blob/1.25.2/pilot/docker/Dockerfile.proxyv2
@@ -24,20 +27,20 @@ import:
 - image: {{ .ModuleName }}/common-{{ $istioImageVersion }}-src-artifact
   add: /src/istio/tools/packaging/common/envoy_bootstrap.json
   to: /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-agent-artifact
   add: /src/istio/out/pilot-agent
   to: /usr/local/bin/pilot-agent
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-envoy-artifact
   add: /src/proxy/bin/envoy
   to: /usr/local/bin/envoy
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - from: {{ index $.Images "libs/glibc-v2.41" }}
   add: /lib64/libc.so.6
@@ -74,7 +77,7 @@ git:
 {{- include "image mount points" . }}
 imageSpec:
   config:
-    user: "1337:1337"
+    user: {{ $UID }}:{{ $GID }}
     env: 
       ISTIO_META_ISTIO_PROXY_SHA: "istio-proxy:78bd2d9b284978e170a49cd13decd5f952544489"
       ISTIO_META_ISTIO_VERSION: {{ $istioVersion }}
@@ -111,7 +114,7 @@ shell:
   - strip /src/istio/out/pilot-agent
   #
   - chmod 0555 /src/istio/out/pilot-agent
-  - chown 1337:1337 /src/istio/out/pilot-agent
+  - chown {{ $UID }}:{{ $GID }} /src/istio/out/pilot-agent
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-build-envoy-artifact
 fromImage: {{ $.ModuleName }}/{{ .ImageName }}-build-image-artifact
@@ -264,7 +267,12 @@ shell:
     done
 imageSpec:
   config:
-    env: {"GOROOT": "/usr/local/go", "GOPATH": "/go", "PATH": "${PATH}:${GOROOT}/bin:${GOPATH}/bin", "GOOS": "linux", "GOARCH": "amd64"}
+    env:
+      GOROOT: "/usr/local/go"
+      GOPATH: "/go"
+      PATH: "${PATH}:${GOROOT}/bin:${GOPATH}/bin"
+      GOOS: "linux"
+      GOARCH: "amd64"
 ---
 #=====================================================================================================
 ---

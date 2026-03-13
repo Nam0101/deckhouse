@@ -1,6 +1,9 @@
 ---
 {{- $istioVersion := "1.21.6" }}
 {{- $istioImageVersion := (printf "v%s" (replace "." "x" $istioVersion)) }} {{- /* 1.21.6 -> v1x21x6 */}}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.21.6/operator/docker/Dockerfile.operator
 image: {{ .ModuleName }}/{{ .ImageName }}
@@ -9,8 +12,8 @@ import:
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/out/operator
   to: /usr/local/bin/operator
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/manifests
@@ -18,7 +21,7 @@ import:
   after: setup
 imageSpec:
   config:
-    user: "1337:1337"
+    user: {{ $UID }}:{{ $GID }}
     entrypoint: ["/usr/local/bin/operator"]
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact

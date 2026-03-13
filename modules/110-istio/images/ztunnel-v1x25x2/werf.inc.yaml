@@ -1,4 +1,8 @@
+---
 {{- $istioVersion := include "get_oss_version_by_id" (list "istio-1-25" $ ) }}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 image: {{ $.ModuleName }}/{{ $.ImageName }}
 fromImage: common/distroless
@@ -6,8 +10,8 @@ import:
   - image: {{ $.ModuleName }}/{{ $.ImageName }}-artifact
     add: /src/ztunnel/bin/ztunnel
     to: /usr/local/bin/ztunnel
-    owner: 1337
-    group: 1337
+    owner: {{ $UID }}
+    group: {{ $GID }}
     before: install
   - from: {{ index $.Images "libs/glibc-v2.41" }}
     add: /lib64/libc.so.6
@@ -31,7 +35,7 @@ import:
     before: install
 imageSpec:
   config:
-    user: "1337:1337"
+    user: {{ $UID }}:{{ $GID }}
     env:  
       ISTIO_META_ISTIO_VERSION: {{ $istioVersion }}
     entrypoint: ["/usr/local/bin/ztunnel"]

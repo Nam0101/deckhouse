@@ -1,6 +1,9 @@
 ---
 {{- $istioVersion := include "get_oss_version_by_id" (list "istio-1-21" $ ) }}
 {{- $istioImageVersion := (printf "v%s" (replace "." "x" $istioVersion)) }} {{- /* 1.21.6 -> v1x21x6 */}}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.21.6/cni/deployments/kubernetes/Dockerfile.install-cni
 image: {{ .ModuleName }}/{{ .ImageName }}
@@ -9,22 +12,23 @@ import:
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/out/istio-cni
   to: /opt/cni/bin/istio-cni
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/out/install-cni
   to: /usr/local/bin/install-cni
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 git:
 {{- include "image mount points" . }}
 imageSpec:
   config:
-    env: {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin"}
+    env: 
+      PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin"
     workingDir: "/opt/cni/bin"
-    user: "1337:1337"
+    user: {{ $UID }}:{{ $GID }}
     entrypoint: ["/usr/local/bin/install-cni"]
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
@@ -55,4 +59,4 @@ shell:
   - strip /src/istio/out/install-cni
   - strip /src/istio/out/istio-cni
   - chmod 0700 /src/istio/out/install-cni /src/istio/out/istio-cni
-  - chown 1337:1337 /src/istio/out/istio-cni
+  - chown {{ $UID }}:{{ $GID }} /src/istio/out/istio-cni

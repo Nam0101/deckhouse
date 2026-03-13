@@ -3,6 +3,9 @@
 {{- $istioImageVersion := (printf "v%s" (replace "." "x" $istioVersion)) }} {{- /* 1.25.2 -> v1x25x2 */}}
 {{- $iptables_version := "1.8.9" }}
 {{- $iptables_image_version := $iptables_version | replace "." "-" }}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.25.2/cni/deployments/kubernetes/Dockerfile.install-cni
 image: {{ .ModuleName }}/{{ .ImageName }}
@@ -11,14 +14,14 @@ import:
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/out/istio-cni
   to: /opt/cni/bin/istio-cni
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
   add: /src/istio/out/install-cni
   to: /usr/local/bin/install-cni
-  owner: 1337
-  group: 1337
+  owner: {{ $UID }}
+  group: {{ $GID }}
   after: setup
 - image: {{ .ModuleName }}/{{ .ImageName }}-binaries-artifact
   add: /relocate
@@ -39,9 +42,10 @@ git:
 {{- include "image mount points" . }}
 imageSpec:
   config:
-    env: {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin"}
+    env: 
+      PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin"
     workingDir: "/opt/cni/bin"
-    user: "1337:1337"
+    user: {{ $UID }}:{{ $GID }}
     entrypoint: ["/usr/local/bin/install-cni"]
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
@@ -72,7 +76,7 @@ shell:
   - strip /src/istio/out/install-cni
   - strip /src/istio/out/istio-cni
   - chmod 0700 /src/istio/out/install-cni /src/istio/out/istio-cni
-  - chown 1337:1337 /src/istio/out/istio-cni
+  - chown {{ $UID }}:{{ $GID }} /src/istio/out/istio-cni
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-binaries-artifact
 fromImage: common/relocate-artifact
