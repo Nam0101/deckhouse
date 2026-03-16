@@ -1,8 +1,8 @@
 ---
 {{- $istioVersion := include "get_oss_version_by_id" (list "istio-1-25" $ ) }}
 # user and group id
-{{- $UID := "1337" }}
-{{- $GID := "1337" }}
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 image: {{ $.ModuleName }}/{{ $.ImageName }}
 fromImage: common/distroless

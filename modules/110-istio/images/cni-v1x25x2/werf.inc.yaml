@@ -4,8 +4,8 @@
 {{- $iptables_version := "1.8.9" }}
 {{- $iptables_image_version := $iptables_version | replace "." "-" }}
 # user and group id
-{{- $UID := "1337" }}
-{{- $GID := "1337" }}
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.25.2/cni/deployments/kubernetes/Dockerfile.install-cni
 image: {{ .ModuleName }}/{{ .ImageName }}
