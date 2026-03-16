@@ -16,8 +16,8 @@
   {{- $sourceraw = printf "http://%s/repository/githubusercontent" $.DistroPackagesProxy }}
 {{- end }}
 # user and group id
-{{- $UID := "64535" }}
-{{- $GID := "64535" }}
+{{- $UID := "1337" }}
+{{- $GID := "1337" }}
 ---
 # Based on https://github.com/istio/istio/blob/1.21.6/docker/Dockerfile.base
 #      and https://github.com/istio/istio/blob/1.21.6/pilot/docker/Dockerfile.proxyv2
