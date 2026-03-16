@@ -36,6 +36,7 @@ import:
 imageSpec:
   config:
     user: {{ $UID }}:{{ $GID }}
+    workingDir: "/usr/local/bin"
     entrypoint: ["/usr/local/bin/operator"]
 ---
 image: {{ .ModuleName }}/{{ .ImageName }}-build-artifact
