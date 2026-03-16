@@ -89,8 +89,8 @@ spec:
             - NET_RAW # Required for RAW/PACKET sockets, TPROXY
           readOnlyRootFilesystem: true
           runAsGroup: 64535
-          runAsNonRoot: false
-          runAsUser: 0
+          runAsNonRoot: true
+          runAsUser: 64535
         readinessProbe:
           httpGet:
             port: 15021
