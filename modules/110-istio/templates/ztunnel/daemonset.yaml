@@ -90,7 +90,7 @@ spec:
           readOnlyRootFilesystem: true
           runAsGroup: 64535
           runAsNonRoot: false
-          runAsUser: 64535
+          runAsUser: 0
         readinessProbe:
           httpGet:
             port: 15021
