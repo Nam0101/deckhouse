@@ -2,6 +2,9 @@
 {{- $istioVersion := include "get_oss_version_by_id" (list "istio-1-21" $ ) }}
 {{- $istioImageVersion := (printf "v%s" (replace "." "x" $istioVersion)) }} {{- /* 1.21.6 -> v1x21x6 */}}
 {{- $kialiVersion := printf "v%s" (include "get_oss_version_by_id" (list "kiali-for-istio-1-21" $ )) }}
+# user and group id
+{{- $UID := "64535" }}
+{{- $GID := "64535" }}
 ---
 # Based on https://github.com/kiali/kiali/blob/v1.81.0/deploy/docker/Dockerfile-distroless
 image: {{ .ModuleName }}/{{ .ImageName }}
@@ -10,16 +13,20 @@ import:
 - image: {{ .ModuleName }}/{{ .ImageName }}-backend-build-artifact
   add: /src/kiali/out/kiali
   to: /opt/kiali/kiali
+  owner: {{ $UID }}
+  group: {{ $GID }}
   before: install
 - image: {{ .ModuleName }}/common-{{ $istioImageVersion }}-src-artifact
   add: /src/kial-frontend-assets/static
   to: /opt/kiali/console
+  owner: {{ $UID }}
+  group: {{ $GID }}
   before: install
 git:
 {{- include "image mount points" . }}
 imageSpec:
   config:
-    user: "1000"
+    user: {{ $UID }}:{{ $GID }}
     workingDir: "/opt/kiali"
     entrypoint: ["/opt/kiali/kiali"]
 ---
