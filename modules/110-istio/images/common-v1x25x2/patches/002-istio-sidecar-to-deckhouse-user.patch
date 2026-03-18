@@ -1,0 +1,4361 @@
+diff --git a/cni/README.md b/cni/README.md
+index b16ead32b5..ab648dfe95 100644
+--- a/cni/README.md
++++ b/cni/README.md
+@@ -73,7 +73,7 @@ The annotation based control is currently only supported in 'sidecar' mode. See
+ - INVALID_DROP env var on proxy - changes behavior from reset to drop in iptables
+ - auto excluded inbound ports: 15020, 15021, 15090
+ 
+-The code automatically detects the proxyUID and proxyGID from RunAsUser/RunAsGroup and exclude them from interception, defaulting to 1337
++The code automatically detects the proxyUID and proxyGID from RunAsUser/RunAsGroup and exclude them from interception, defaulting to 64535
+ 
+ ### Overview
+ 
+diff --git a/cni/pkg/plugin/sidecar_redirect.go b/cni/pkg/plugin/sidecar_redirect.go
+index cb9e209726..68fdf89501 100644
+--- a/cni/pkg/plugin/sidecar_redirect.go
++++ b/cni/pkg/plugin/sidecar_redirect.go
+@@ -31,8 +31,8 @@ const (
+ 	redirectModeTPROXY           = "TPROXY"
+ 	defaultProxyStatusPort       = "15020"
+ 	defaultRedirectToPort        = "15001"
+-	defaultNoRedirectUID         = "1337"
+-	defaultNoRedirectGID         = "1337"
++	defaultNoRedirectUID         = "64535"
++	defaultNoRedirectGID         = "64535"
+ 	defaultRedirectMode          = redirectModeREDIRECT
+ 	defaultRedirectIPCidr        = "*"
+ 	defaultRedirectExcludeIPCidr = ""
+diff --git a/cni/pkg/plugin/testdata/basic.txt.golden b/cni/pkg/plugin/testdata/basic.txt.golden
+index 923ff6a519..30b11e6b2c 100644
+--- a/cni/pkg/plugin/testdata/basic.txt.golden
++++ b/cni/pkg/plugin/testdata/basic.txt.golden
+@@ -15,12 +15,12 @@
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/cni/pkg/plugin/testdata/dns.txt.golden b/cni/pkg/plugin/testdata/dns.txt.golden
+index 6d04f151ad..c5f8aaee7e 100644
+--- a/cni/pkg/plugin/testdata/dns.txt.golden
++++ b/cni/pkg/plugin/testdata/dns.txt.golden
+@@ -16,12 +16,12 @@
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_OUTPUT_DNS
+ -A ISTIO_OUTPUT_DNS -p tcp --dport 53 -j REDIRECT --to-ports 15053
+ -A ISTIO_OUTPUT_DNS -p udp --dport 53 -j REDIRECT --to-port 15053
+@@ -32,10 +32,10 @@ COMMIT
+ -N ISTIO_OUTPUT_DNS
+ -N ISTIO_INBOUND
+ -A OUTPUT -j ISTIO_OUTPUT_DNS
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 1337 -j CT --zone 2
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 1337 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 64535 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 64535 -j CT --zone 2
+ -A PREROUTING -j ISTIO_INBOUND
+ -A ISTIO_OUTPUT_DNS -p udp --dport 53 -j CT --zone 2
+ -A ISTIO_INBOUND -p udp --sport 53 -j CT --zone 1
+diff --git a/cni/pkg/plugin/testdata/include-exclude-ip.txt.golden b/cni/pkg/plugin/testdata/include-exclude-ip.txt.golden
+index 30cd143ce2..e1ea9fe6be 100644
+--- a/cni/pkg/plugin/testdata/include-exclude-ip.txt.golden
++++ b/cni/pkg/plugin/testdata/include-exclude-ip.txt.golden
+@@ -15,10 +15,10 @@
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -d 10.0.0.0/8 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.0/8 -j ISTIO_REDIRECT
+diff --git a/cni/pkg/plugin/testdata/include-exclude-ports.txt.golden b/cni/pkg/plugin/testdata/include-exclude-ports.txt.golden
+index d501b33d89..c8faf0b011 100644
+--- a/cni/pkg/plugin/testdata/include-exclude-ports.txt.golden
++++ b/cni/pkg/plugin/testdata/include-exclude-ports.txt.golden
+@@ -15,12 +15,12 @@
+ -A ISTIO_OUTPUT -p tcp --dport 6666 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 6666 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/cni/pkg/plugin/testdata/invalid-drop.txt.golden b/cni/pkg/plugin/testdata/invalid-drop.txt.golden
+index 4696883109..83c8d1c4ae 100644
+--- a/cni/pkg/plugin/testdata/invalid-drop.txt.golden
++++ b/cni/pkg/plugin/testdata/invalid-drop.txt.golden
+@@ -20,12 +20,12 @@ COMMIT
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/cni/pkg/plugin/testdata/status-ports.txt.golden b/cni/pkg/plugin/testdata/status-ports.txt.golden
+index ccd56184c2..0e826fc693 100755
+--- a/cni/pkg/plugin/testdata/status-ports.txt.golden
++++ b/cni/pkg/plugin/testdata/status-ports.txt.golden
+@@ -15,12 +15,12 @@
+ -A OUTPUT -p tcp -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/cni/pkg/plugin/testdata/tproxy.txt.golden b/cni/pkg/plugin/testdata/tproxy.txt.golden
+index 1814c0f9e7..d1004c0d42 100644
+--- a/cni/pkg/plugin/testdata/tproxy.txt.golden
++++ b/cni/pkg/plugin/testdata/tproxy.txt.golden
+@@ -13,8 +13,8 @@
+ -A ISTIO_INBOUND -p tcp -j ISTIO_TPROXY
+ -A PREROUTING -p tcp -m mark --mark 1337 -j CONNMARK --save-mark
+ -A OUTPUT -p tcp -o lo -m mark --mark 1337 -j RETURN
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 1337 -j MARK --set-mark 1338
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 1337 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 64535 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 64535 -j MARK --set-mark 1338
+ -A OUTPUT -p tcp -m connmark --mark 1337 -j CONNMARK --restore-mark
+ -I ISTIO_INBOUND 1 -p tcp -m mark --mark 1337 -j RETURN
+ -I ISTIO_INBOUND 2 -p tcp -s 127.0.0.6/32 -i lo -j RETURN
+@@ -32,12 +32,12 @@ COMMIT
+ -A ISTIO_OUTPUT -p tcp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -p udp --dport 15020 -j RETURN
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/docker/Dockerfile.base b/docker/Dockerfile.base
+index 382eb51855..6b803b27f5 100644
+--- a/docker/Dockerfile.base
++++ b/docker/Dockerfile.base
+@@ -30,5 +30,5 @@ RUN apt-get update && \
+   && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+ 
+ # Sudoers used to allow tcpdump and other debug utilities.
+-RUN useradd -m --uid 1337 istio-proxy && \
++RUN useradd -m --uid 64535 istio-proxy && \
+   echo "istio-proxy ALL=NOPASSWD: ALL" >> /etc/sudoers
+diff --git a/docker/Dockerfile.distroless b/docker/Dockerfile.distroless
+index f6d2b0d9c1..38b9f443e7 100644
+--- a/docker/Dockerfile.distroless
++++ b/docker/Dockerfile.distroless
+@@ -7,8 +7,8 @@ FROM ubuntu:noble AS ubuntu_source
+ # Modify contents of container
+ COPY --from=distroless_source /etc/ /home/etc
+ COPY --from=distroless_source /home/nonroot /home/nonroot
+-RUN echo istio-proxy:x:1337: >> /home/etc/group
+-RUN echo istio-proxy:x:1337:1337:istio-proxy:/nonexistent:/sbin/nologin >> /home/etc/passwd
++RUN echo istio-proxy:x:64535: >> /home/etc/group
++RUN echo istio-proxy:x:64535:64535:istio-proxy:/nonexistent:/sbin/nologin >> /home/etc/passwd
+ 
+ # Customize distroless with the following:
+ # - password file
+diff --git a/istioctl/pkg/describe/describe.go b/istioctl/pkg/describe/describe.go
+index 8bc9ff76cb..f8eabfd0dc 100644
+--- a/istioctl/pkg/describe/describe.go
++++ b/istioctl/pkg/describe/describe.go
+@@ -482,7 +482,7 @@ func renderMatch(match *v1alpha3.HTTPMatchRequest) string {
+ 
+ func printPod(writer io.Writer, pod *corev1.Pod, revision string) {
+ 	ports := []string{}
+-	UserID := int64(1337)
++	UserID := int64(64535)
+ 	for _, container := range pod.Spec.Containers {
+ 		for _, port := range container.Ports {
+ 			var protocol string
+@@ -496,7 +496,7 @@ func printPod(writer io.Writer, pod *corev1.Pod, revision string) {
+ 		if container.Name != "istio-proxy" && container.Name != "istio-operator" {
+ 			if container.SecurityContext != nil && container.SecurityContext.RunAsUser != nil {
+ 				if *container.SecurityContext.RunAsUser == UserID {
+-					fmt.Fprintf(writer, "WARNING: User ID (UID) 1337 is reserved for the sidecar proxy.\n")
++					fmt.Fprintf(writer, "WARNING: User ID (UID) 64535 is reserved for the sidecar proxy.\n")
+ 				}
+ 			}
+ 		}
+@@ -538,7 +538,7 @@ func printPod(writer io.Writer, pod *corev1.Pod, revision string) {
+ 	// Ref: https://istio.io/latest/docs/ops/deployment/requirements/#pod-requirements
+ 	if pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.RunAsUser != nil {
+ 		if *pod.Spec.SecurityContext.RunAsUser == UserID {
+-			fmt.Fprintf(writer, "   WARNING: User ID (UID) 1337 is reserved for the sidecar proxy.\n")
++			fmt.Fprintf(writer, "   WARNING: User ID (UID) 64535 is reserved for the sidecar proxy.\n")
+ 		}
+ 	}
+ 
+diff --git a/manifests/charts/gateway/templates/deployment.yaml b/manifests/charts/gateway/templates/deployment.yaml
+index 9db59d8b97..3789afb1fa 100644
+--- a/manifests/charts/gateway/templates/deployment.yaml
++++ b/manifests/charts/gateway/templates/deployment.yaml
+@@ -78,8 +78,8 @@ spec:
+             privileged: false
+             readOnlyRootFilesystem: true
+             {{- if not (eq (.Values.platform | default "") "openshift") }}
+-            runAsUser: 1337
+-            runAsGroup: 1337
++            runAsUser: 64535
++            runAsGroup: 64535
+             {{- end }}
+             runAsNonRoot: true
+           {{- end }}
+diff --git a/manifests/charts/gateways/istio-egress/templates/deployment.yaml b/manifests/charts/gateways/istio-egress/templates/deployment.yaml
+index 2da44f14c8..bb555fea8b 100644
+--- a/manifests/charts/gateways/istio-egress/templates/deployment.yaml
++++ b/manifests/charts/gateways/istio-egress/templates/deployment.yaml
+@@ -66,8 +66,8 @@ spec:
+ {{- if not $gateway.runAsRoot }}
+       securityContext:
+ {{- if not (eq ((coalesce .Values.platform .Values.global.platform) | default "") "openshift") }}
+-        runAsUser: 1337
+-        runAsGroup: 1337
++        runAsUser: 64535
++        runAsGroup: 64535
+ {{- end }}
+         runAsNonRoot: true
+ {{- end }}
+diff --git a/manifests/charts/gateways/istio-egress/templates/injected-deployment.yaml b/manifests/charts/gateways/istio-egress/templates/injected-deployment.yaml
+index 241f9fb267..18fc3f84d6 100644
+--- a/manifests/charts/gateways/istio-egress/templates/injected-deployment.yaml
++++ b/manifests/charts/gateways/istio-egress/templates/injected-deployment.yaml
+@@ -64,8 +64,8 @@ spec:
+ {{- if not $gateway.runAsRoot }}
+       securityContext:
+ {{- if not (eq (coalesce .Values.platform .Values.global.platform) "openshift") }}
+-        runAsUser: 1337
+-        runAsGroup: 1337
++        runAsUser: 64535
++        runAsGroup: 64535
+ {{- end }}
+         runAsNonRoot: true
+ {{- end }}
+diff --git a/manifests/charts/gateways/istio-ingress/templates/deployment.yaml b/manifests/charts/gateways/istio-ingress/templates/deployment.yaml
+index 9fff771614..6d1bb40efe 100644
+--- a/manifests/charts/gateways/istio-ingress/templates/deployment.yaml
++++ b/manifests/charts/gateways/istio-ingress/templates/deployment.yaml
+@@ -66,8 +66,8 @@ spec:
+ {{- if not $gateway.runAsRoot }}
+       securityContext:
+ {{- if not (eq ((coalesce .Values.platform .Values.global.platform) | default "") "openshift") }}
+-        runAsUser: 1337
+-        runAsGroup: 1337
++        runAsUser: 64535
++        runAsGroup: 64535
+ {{- end }}
+         runAsNonRoot: true
+ {{- end }}
+diff --git a/manifests/charts/gateways/istio-ingress/templates/injected-deployment.yaml b/manifests/charts/gateways/istio-ingress/templates/injected-deployment.yaml
+index 05cabac6e3..2fb1a04afb 100644
+--- a/manifests/charts/gateways/istio-ingress/templates/injected-deployment.yaml
++++ b/manifests/charts/gateways/istio-ingress/templates/injected-deployment.yaml
+@@ -64,8 +64,8 @@ spec:
+ {{- if not $gateway.runAsRoot }}
+       securityContext:
+ {{- if not (eq (coalesce .Values.platform .Values.global.platform) "openshift") }}
+-        runAsUser: 1337
+-        runAsGroup: 1337
++        runAsUser: 64535
++        runAsGroup: 64535
+ {{- end }}
+         runAsNonRoot: true
+ {{- end }}
+diff --git a/manifests/charts/istio-control/istio-discovery/files/gateway-injection-template.yaml b/manifests/charts/istio-control/istio-discovery/files/gateway-injection-template.yaml
+index dbd83cc57d..46177a8834 100644
+--- a/manifests/charts/istio-control/istio-discovery/files/gateway-injection-template.yaml
++++ b/manifests/charts/istio-control/istio-discovery/files/gateway-injection-template.yaml
+@@ -53,8 +53,8 @@ spec:
+       {{ toYaml .Values.global.proxy.lifecycle | indent 6 }}
+   {{- end }}
+     securityContext:
+-      runAsUser: {{ .ProxyUID | default "1337" }}
+-      runAsGroup: {{ .ProxyGID | default "1337" }}
++      runAsUser: {{ .ProxyUID | default "64535" }}
++      runAsGroup: {{ .ProxyGID | default "64535" }}
+     env:
+     - name: PILOT_CERT_PROVIDER
+       value: {{ .Values.global.pilotCertProvider }}
+diff --git a/manifests/charts/istio-control/istio-discovery/files/injection-template.yaml b/manifests/charts/istio-control/istio-discovery/files/injection-template.yaml
+index 3b3f69cd9d..dc828f0a5c 100644
+--- a/manifests/charts/istio-control/istio-discovery/files/injection-template.yaml
++++ b/manifests/charts/istio-control/istio-discovery/files/injection-template.yaml
+@@ -88,7 +88,7 @@ spec:
+     - "-z"
+     - {{ .MeshConfig.ProxyInboundListenPort | default "15006" | quote }}
+     - "-u"
+-    - {{ .ProxyUID | default "1337" | quote }}
++    - {{ .ProxyUID | default "64535" | quote }}
+     - "-m"
+     - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+     - "-i"
+@@ -161,8 +161,8 @@ spec:
+       runAsUser: 0
+     {{- else }}
+       readOnlyRootFilesystem: true
+-      runAsGroup: {{ .ProxyGID | default "1337" }}
+-      runAsUser: {{ .ProxyUID | default "1337" }}
++      runAsGroup: {{ .ProxyGID | default "64535" }}
++      runAsUser: {{ .ProxyUID | default "64535" }}
+       runAsNonRoot: true
+     {{- end }}
+   {{ end -}}
+@@ -362,7 +362,7 @@ spec:
+         - ALL
+       privileged: true
+       readOnlyRootFilesystem: true
+-      runAsGroup: {{ .ProxyGID | default "1337" }}
++      runAsGroup: {{ .ProxyGID | default "64535" }}
+       runAsNonRoot: false
+       runAsUser: 0
+       {{- else }}
+@@ -381,13 +381,13 @@ spec:
+         - ALL
+       privileged: {{ .Values.global.proxy.privileged }}
+       readOnlyRootFilesystem: true
+-      runAsGroup: {{ .ProxyGID | default "1337" }}
++      runAsGroup: {{ .ProxyGID | default "64535" }}
+       {{ if or (eq (annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode) `TPROXY`) (eq (annotation .ObjectMeta `sidecar.istio.io/capNetBindService` .Values.global.proxy.capNetBindService) `true`) -}}
+       runAsNonRoot: false
+       runAsUser: 0
+       {{- else -}}
+       runAsNonRoot: true
+-      runAsUser: {{ .ProxyUID | default "1337" }}
++      runAsUser: {{ .ProxyUID | default "64535" }}
+       {{- end }}
+       {{- end }}
+     resources:
+diff --git a/manifests/charts/istio-control/istio-discovery/files/kube-gateway.yaml b/manifests/charts/istio-control/istio-discovery/files/kube-gateway.yaml
+index dbe158de1f..b0564fb38f 100644
+--- a/manifests/charts/istio-control/istio-discovery/files/kube-gateway.yaml
++++ b/manifests/charts/istio-control/istio-discovery/files/kube-gateway.yaml
+@@ -99,8 +99,8 @@ spec:
+           allowPrivilegeEscalation: false
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsUser: {{ .ProxyUID | default "1337" }}
+-          runAsGroup: {{ .ProxyGID | default "1337" }}
++          runAsUser: {{ .ProxyUID | default "64535" }}
++          runAsGroup: {{ .ProxyGID | default "64535" }}
+           runAsNonRoot: true
+         ports:
+         - containerPort: 15020
+diff --git a/manifests/charts/istio-control/istio-discovery/files/waypoint.yaml b/manifests/charts/istio-control/istio-discovery/files/waypoint.yaml
+index 2600e98e21..f60bd41655 100644
+--- a/manifests/charts/istio-control/istio-discovery/files/waypoint.yaml
++++ b/manifests/charts/istio-control/istio-discovery/files/waypoint.yaml
+@@ -232,8 +232,8 @@ spec:
+         securityContext:
+           privileged: false
+         {{- if not (eq .Values.global.platform "openshift") }}
+-          runAsGroup: 1337
+-          runAsUser: 1337
++          runAsGroup: 64535
++          runAsUser: 64535
+         {{- end }}
+           allowPrivilegeEscalation: false
+           readOnlyRootFilesystem: true
+diff --git a/manifests/charts/ztunnel/templates/daemonset.yaml b/manifests/charts/ztunnel/templates/daemonset.yaml
+index ee5775d70b..1a1cfa6879 100644
+--- a/manifests/charts/ztunnel/templates/daemonset.yaml
++++ b/manifests/charts/ztunnel/templates/daemonset.yaml
+@@ -87,7 +87,7 @@ spec:
+             - SYS_ADMIN # Required for `setns` - doing things in other netns
+             - NET_RAW # Required for RAW/PACKET sockets, TPROXY
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: false
+           runAsUser: 0
+ {{- if .Values.seLinuxOptions }}
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/all_on.golden-show-in-gh-pull-request.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/all_on.golden-show-in-gh-pull-request.yaml
+index 356ff2cdad..59d99e338c 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/all_on.golden-show-in-gh-pull-request.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/all_on.golden-show-in-gh-pull-request.yaml
+@@ -17158,7 +17158,7 @@ data:
+             - "-z"
+             - {{ .MeshConfig.ProxyInboundListenPort | default "15006" | quote }}
+             - "-u"
+-            - {{ .ProxyUID | default "1337" | quote }}
++            - {{ .ProxyUID | default "64535" | quote }}
+             - "-m"
+             - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+             - "-i"
+@@ -17225,8 +17225,8 @@ data:
+               runAsUser: 0
+             {{- else }}
+               readOnlyRootFilesystem: true
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               runAsNonRoot: true
+             {{- end }}
+           {{ end -}}
+@@ -17454,7 +17454,7 @@ data:
+                 - ALL
+               privileged: true
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else }}
+@@ -17473,13 +17473,13 @@ data:
+                 - ALL
+               privileged: {{ .Values.global.proxy.privileged }}
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               {{ if or (eq (annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode) `TPROXY`) (eq (annotation .ObjectMeta `sidecar.istio.io/capNetBindService` .Values.global.proxy.capNetBindService) `true`) -}}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else -}}
+               runAsNonRoot: true
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               {{- end }}
+               {{- end }}
+             resources:
+@@ -17658,8 +17658,8 @@ data:
+               {{ toYaml .Values.global.proxy.lifecycle | indent 6 }}
+           {{- end }}
+             securityContext:
+-              runAsUser: {{ .ProxyUID | default "1337" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+             env:
+             - name: PILOT_CERT_PROVIDER
+               value: {{ .Values.global.pilotCertProvider }}
+@@ -18441,8 +18441,8 @@ data:
+                   timeoutSeconds: 1
+                 securityContext:
+                   privileged: false
+-                  runAsGroup: 1337
+-                  runAsUser: 1337
++                  runAsGroup: 64535
++                  runAsUser: 64535
+                   allowPrivilegeEscalation: false
+                   readOnlyRootFilesystem: true
+                   runAsNonRoot: true
+@@ -18641,8 +18641,8 @@ data:
+                   allowPrivilegeEscalation: false
+                   privileged: false
+                   readOnlyRootFilesystem: true
+-                  runAsUser: {{ .ProxyUID | default "1337" }}
+-                  runAsGroup: {{ .ProxyGID | default "1337" }}
++                  runAsUser: {{ .ProxyUID | default "64535" }}
++                  runAsGroup: {{ .ProxyGID | default "64535" }}
+                   runAsNonRoot: true
+                 ports:
+                 - containerPort: 15021
+@@ -19339,9 +19339,9 @@ spec:
+           name: egressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+       serviceAccountName: istio-egressgateway-service-account
+       volumes:
+       - emptyDir: {}
+@@ -19559,9 +19559,9 @@ spec:
+           name: ingressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+       serviceAccountName: istio-ingressgateway-service-account
+       volumes:
+       - emptyDir: {}
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/flag_output_set_values.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/flag_output_set_values.golden.yaml
+index 4a23cccc96..d720a80237 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/flag_output_set_values.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/flag_output_set_values.golden.yaml
+@@ -170,9 +170,9 @@ spec:
+           name: ingressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+       serviceAccountName: istio-ingressgateway-service-account
+       volumes:
+       - emptyDir: {}
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/helm_values_enablement.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/helm_values_enablement.golden.yaml
+index 2dcdbf70ec..ff1d0b4628 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/helm_values_enablement.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/helm_values_enablement.golden.yaml
+@@ -168,9 +168,9 @@ spec:
+           name: egressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+       serviceAccountName: istio-egressgateway-service-account
+       volumes:
+       - emptyDir: {}
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/ingressgateway_k8s_settings.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/ingressgateway_k8s_settings.golden.yaml
+index 2c7e0123cb..af409ced2a 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/ingressgateway_k8s_settings.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/ingressgateway_k8s_settings.golden.yaml
+@@ -170,9 +170,9 @@ spec:
+           name: ingressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+         sysctls:
+         - name: net.ipv4.ip_local_port_range
+           value: 80 65535
+@@ -392,9 +392,9 @@ spec:
+           name: ingressgateway-ca-certs
+           readOnly: true
+       securityContext:
+-        runAsGroup: 1337
++        runAsGroup: 64535
+         runAsNonRoot: true
+-        runAsUser: 1337
++        runAsUser: 64535
+       serviceAccountName: istio-ingressgateway-custom-service-account
+       volumes:
+       - emptyDir: {}
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/pilot_default.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/pilot_default.golden.yaml
+index e4b1c19198..b9fc25b3d7 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/pilot_default.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/pilot_default.golden.yaml
+@@ -575,7 +575,7 @@ data:
+             - "-z"
+             - {{ .MeshConfig.ProxyInboundListenPort | default "15006" | quote }}
+             - "-u"
+-            - {{ .ProxyUID | default "1337" | quote }}
++            - {{ .ProxyUID | default "64535" | quote }}
+             - "-m"
+             - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+             - "-i"
+@@ -642,8 +642,8 @@ data:
+               runAsUser: 0
+             {{- else }}
+               readOnlyRootFilesystem: true
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               runAsNonRoot: true
+             {{- end }}
+           {{ end -}}
+@@ -871,7 +871,7 @@ data:
+                 - ALL
+               privileged: true
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else }}
+@@ -890,13 +890,13 @@ data:
+                 - ALL
+               privileged: {{ .Values.global.proxy.privileged }}
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               {{ if or (eq (annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode) `TPROXY`) (eq (annotation .ObjectMeta `sidecar.istio.io/capNetBindService` .Values.global.proxy.capNetBindService) `true`) -}}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else -}}
+               runAsNonRoot: true
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               {{- end }}
+               {{- end }}
+             resources:
+@@ -1075,8 +1075,8 @@ data:
+               {{ toYaml .Values.global.proxy.lifecycle | indent 6 }}
+           {{- end }}
+             securityContext:
+-              runAsUser: {{ .ProxyUID | default "1337" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+             env:
+             - name: PILOT_CERT_PROVIDER
+               value: {{ .Values.global.pilotCertProvider }}
+@@ -1858,8 +1858,8 @@ data:
+                   timeoutSeconds: 1
+                 securityContext:
+                   privileged: false
+-                  runAsGroup: 1337
+-                  runAsUser: 1337
++                  runAsGroup: 64535
++                  runAsUser: 64535
+                   allowPrivilegeEscalation: false
+                   readOnlyRootFilesystem: true
+                   runAsNonRoot: true
+@@ -2058,8 +2058,8 @@ data:
+                   allowPrivilegeEscalation: false
+                   privileged: false
+                   readOnlyRootFilesystem: true
+-                  runAsUser: {{ .ProxyUID | default "1337" }}
+-                  runAsGroup: {{ .ProxyGID | default "1337" }}
++                  runAsUser: {{ .ProxyUID | default "64535" }}
++                  runAsGroup: {{ .ProxyGID | default "64535" }}
+                   runAsNonRoot: true
+                 ports:
+                 - containerPort: 15021
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/sidecar_template.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/sidecar_template.golden.yaml
+index f2249fffba..a791cbbeb9 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/sidecar_template.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/sidecar_template.golden.yaml
+@@ -103,7 +103,7 @@ data:
+             - "-z"
+             - {{ .MeshConfig.ProxyInboundListenPort | default "15006" | quote }}
+             - "-u"
+-            - {{ .ProxyUID | default "1337" | quote }}
++            - {{ .ProxyUID | default "64535" | quote }}
+             - "-m"
+             - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+             - "-i"
+@@ -170,8 +170,8 @@ data:
+               runAsUser: 0
+             {{- else }}
+               readOnlyRootFilesystem: true
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               runAsNonRoot: true
+             {{- end }}
+           {{ end -}}
+@@ -399,7 +399,7 @@ data:
+                 - ALL
+               privileged: true
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else }}
+@@ -418,13 +418,13 @@ data:
+                 - ALL
+               privileged: {{ .Values.global.proxy.privileged }}
+               readOnlyRootFilesystem: {{ ne (annotation .ObjectMeta `sidecar.istio.io/enableCoreDump` .Values.global.proxy.enableCoreDump) "true" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+               {{ if or (eq (annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode) `TPROXY`) (eq (annotation .ObjectMeta `sidecar.istio.io/capNetBindService` .Values.global.proxy.capNetBindService) `true`) -}}
+               runAsNonRoot: false
+               runAsUser: 0
+               {{- else -}}
+               runAsNonRoot: true
+-              runAsUser: {{ .ProxyUID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
+               {{- end }}
+               {{- end }}
+             resources:
+@@ -603,8 +603,8 @@ data:
+               {{ toYaml .Values.global.proxy.lifecycle | indent 6 }}
+           {{- end }}
+             securityContext:
+-              runAsUser: {{ .ProxyUID | default "1337" }}
+-              runAsGroup: {{ .ProxyGID | default "1337" }}
++              runAsUser: {{ .ProxyUID | default "64535" }}
++              runAsGroup: {{ .ProxyGID | default "64535" }}
+             env:
+             - name: PILOT_CERT_PROVIDER
+               value: {{ .Values.global.pilotCertProvider }}
+@@ -1386,8 +1386,8 @@ data:
+                   timeoutSeconds: 1
+                 securityContext:
+                   privileged: false
+-                  runAsGroup: 1337
+-                  runAsUser: 1337
++                  runAsGroup: 64535
++                  runAsUser: 64535
+                   allowPrivilegeEscalation: false
+                   readOnlyRootFilesystem: true
+                   runAsNonRoot: true
+@@ -1586,8 +1586,8 @@ data:
+                   allowPrivilegeEscalation: false
+                   privileged: false
+                   readOnlyRootFilesystem: true
+-                  runAsUser: {{ .ProxyUID | default "1337" }}
+-                  runAsGroup: {{ .ProxyGID | default "1337" }}
++                  runAsUser: {{ .ProxyUID | default "64535" }}
++                  runAsGroup: {{ .ProxyGID | default "64535" }}
+                   runAsNonRoot: true
+                 ports:
+                 - containerPort: 15021
+diff --git a/operator/cmd/mesh/testdata/manifest-generate/output/ztunnel.golden.yaml b/operator/cmd/mesh/testdata/manifest-generate/output/ztunnel.golden.yaml
+index 3e7b0b7912..e9fca9e792 100644
+--- a/operator/cmd/mesh/testdata/manifest-generate/output/ztunnel.golden.yaml
++++ b/operator/cmd/mesh/testdata/manifest-generate/output/ztunnel.golden.yaml
+@@ -91,7 +91,7 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: false
+           runAsUser: 0
+         volumeMounts:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/cluster-ip.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/cluster-ip.yaml
+index 0d16fc7d34..3d85391faf 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/cluster-ip.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/cluster-ip.yaml
+@@ -158,9 +158,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/custom-class.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/custom-class.yaml
+index 4728b55c4a..03208d85c9 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/custom-class.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/custom-class.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/infrastructure-labels-annotations.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/infrastructure-labels-annotations.yaml
+index 6c1442d627..855ad629bd 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/infrastructure-labels-annotations.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/infrastructure-labels-annotations.yaml
+@@ -161,9 +161,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/istio-upgrade-to-1.24.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/istio-upgrade-to-1.24.yaml
+index c9cd8e60db..80aeabaaf4 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/istio-upgrade-to-1.24.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/istio-upgrade-to-1.24.yaml
+@@ -162,9 +162,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect-infra.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect-infra.yaml
+index 8ffa02d74c..68a70e0b55 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect-infra.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect-infra.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect.yaml
+index 8ffa02d74c..68a70e0b55 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/kube-gateway-ambient-redirect.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/manual-ip.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/manual-ip.yaml
+index 7ff97e6545..a098485fb7 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/manual-ip.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/manual-ip.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/manual-sa.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/manual-sa.yaml
+index 1c7b44b57a..8fb0c45394 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/manual-sa.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/manual-sa.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/multinetwork.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/multinetwork.yaml
+index e1a2fe79e5..c9d50bafb5 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/multinetwork.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/multinetwork.yaml
+@@ -162,9 +162,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/proxy-config-crd.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/proxy-config-crd.yaml
+index 890c525a58..8da164b73b 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/proxy-config-crd.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/proxy-config-crd.yaml
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/simple.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/simple.yaml
+index 28a5c58f26..f5a2c7d620 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/simple.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/simple.yaml
+@@ -161,9 +161,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint-no-network-label.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint-no-network-label.yaml
+index 5129eb15ae..6a5b61af16 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint-no-network-label.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint-no-network-label.yaml
+@@ -160,9 +160,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint.yaml b/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint.yaml
+index 5129eb15ae..6a5b61af16 100644
+--- a/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint.yaml
++++ b/pilot/pkg/config/kube/gateway/testdata/deployment/waypoint.yaml
+@@ -160,9 +160,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 30
+           httpGet:
+diff --git a/pkg/config/analysis/analyzers/analyzers_test.go b/pkg/config/analysis/analyzers/analyzers_test.go
+index 6773d5a085..1b6412f9e9 100644
+--- a/pkg/config/analysis/analyzers/analyzers_test.go
++++ b/pkg/config/analysis/analyzers/analyzers_test.go
+@@ -784,7 +784,7 @@ var testGrid = []testCase{
+ 		},
+ 	},
+ 	{
+-		name: "Application Pod SecurityContext with UID 1337",
++		name: "Application Pod SecurityContext with UID 64535",
+ 		inputFiles: []string{
+ 			"testdata/pod-sec-uid.yaml",
+ 		},
+@@ -794,7 +794,7 @@ var testGrid = []testCase{
+ 		},
+ 	},
+ 	{
+-		name: "Application Container SecurityContext with UID 1337",
++		name: "Application Container SecurityContext with UID 64535",
+ 		inputFiles: []string{
+ 			"testdata/pod-con-sec-uid.yaml",
+ 		},
+@@ -804,7 +804,7 @@ var testGrid = []testCase{
+ 		},
+ 	},
+ 	{
+-		name: "Deployment Pod SecurityContext with UID 1337",
++		name: "Deployment Pod SecurityContext with UID 64535",
+ 		inputFiles: []string{
+ 			"testdata/deployment-pod-sec-uid.yaml",
+ 		},
+@@ -814,7 +814,7 @@ var testGrid = []testCase{
+ 		},
+ 	},
+ 	{
+-		name: "Deployment Container SecurityContext with UID 1337",
++		name: "Deployment Container SecurityContext with UID 64535",
+ 		inputFiles: []string{
+ 			"testdata/deployment-con-sec-uid.yaml",
+ 		},
+diff --git a/pkg/config/analysis/analyzers/deployment/pod.go b/pkg/config/analysis/analyzers/deployment/pod.go
+index 7d727deb95..cd7560dabe 100644
+--- a/pkg/config/analysis/analyzers/deployment/pod.go
++++ b/pkg/config/analysis/analyzers/deployment/pod.go
+@@ -31,7 +31,7 @@ type ApplicationUIDAnalyzer struct{}
+ var _ analysis.Analyzer = &ApplicationUIDAnalyzer{}
+ 
+ const (
+-	UserID = int64(1337)
++	UserID = int64(64535)
+ )
+ 
+ func (appUID *ApplicationUIDAnalyzer) Metadata() analysis.Metadata {
+diff --git a/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-configmap.yaml b/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-configmap.yaml
+index 2e94999ac4..b019307e0b 100644
+--- a/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-configmap.yaml
++++ b/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-configmap.yaml
+@@ -25,7 +25,7 @@ data:
+         - "-z"
+         - "15006"
+         - "-u"
+-        - 1337
++        - 64535
+         - "-m"
+         - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+         - "-i"
+@@ -300,12 +300,12 @@ data:
+           capabilities:
+             add:
+             - NET_ADMIN
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{ else -}}
+           {{ if .Values.global.sds.enabled }}
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{- end }}
+-          runAsUser: 1337
++          runAsUser: 64535
+           {{- end }}
+         resources:
+           {{ if or (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyCPU`) (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyMemory`) -}}
+diff --git a/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-enabled-nsbydefault.yaml b/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-enabled-nsbydefault.yaml
+index 9506f6d1e2..6858c8db3d 100644
+--- a/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-enabled-nsbydefault.yaml
++++ b/pkg/config/analysis/analyzers/testdata/common/sidecar-injector-enabled-nsbydefault.yaml
+@@ -25,7 +25,7 @@ data:
+         - "-z"
+         - "15006"
+         - "-u"
+-        - 1337
++        - 64535
+         - "-m"
+         - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+         - "-i"
+@@ -296,12 +296,12 @@ data:
+           capabilities:
+             add:
+             - NET_ADMIN
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{ else -}}
+           {{ if .Values.global.sds.enabled }}
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{- end }}
+-          runAsUser: 1337
++          runAsUser: 64535
+           {{- end }}
+         resources:
+           {{ if or (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyCPU`) (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyMemory`) -}}
+diff --git a/pkg/config/analysis/analyzers/testdata/deployment-con-sec-uid.yaml b/pkg/config/analysis/analyzers/testdata/deployment-con-sec-uid.yaml
+index b02cd5b9b7..be54589a89 100644
+--- a/pkg/config/analysis/analyzers/testdata/deployment-con-sec-uid.yaml
++++ b/pkg/config/analysis/analyzers/testdata/deployment-con-sec-uid.yaml
+@@ -18,12 +18,12 @@ spec:
+         version: v1
+     spec:
+       securityContext:
+-        runAsUser: 1337
++        runAsUser: 64535
+       containers:
+       - name: helloworld
+         image: docker.io/istio/examples-helloworld-v1
+         securityContext:
+-          runAsUser: 1337
++          runAsUser: 64535
+         resources:
+           requests:
+             cpu: "100m"
+diff --git a/pkg/config/analysis/analyzers/testdata/deployment-pod-sec-uid.yaml b/pkg/config/analysis/analyzers/testdata/deployment-pod-sec-uid.yaml
+index 7f65dd702d..73821dfed0 100644
+--- a/pkg/config/analysis/analyzers/testdata/deployment-pod-sec-uid.yaml
++++ b/pkg/config/analysis/analyzers/testdata/deployment-pod-sec-uid.yaml
+@@ -18,7 +18,7 @@ spec:
+         version: v1
+     spec:
+       securityContext:
+-        runAsUser: 1337
++        runAsUser: 64535
+       containers:
+       - name: helloworld
+         image: docker.io/istio/examples-helloworld-v1
+diff --git a/pkg/config/analysis/analyzers/testdata/pod-con-sec-uid.yaml b/pkg/config/analysis/analyzers/testdata/pod-con-sec-uid.yaml
+index cbe8cff151..83b48c8815 100644
+--- a/pkg/config/analysis/analyzers/testdata/pod-con-sec-uid.yaml
++++ b/pkg/config/analysis/analyzers/testdata/pod-con-sec-uid.yaml
+@@ -10,7 +10,7 @@ spec:
+   - name: helloworld
+     image: docker.io/istio/examples-helloworld-v1
+     securityContext:
+-      runAsUser: 1337
++      runAsUser: 64535
+     resources:
+       requests:
+         cpu: "100m"
+diff --git a/pkg/config/analysis/analyzers/testdata/pod-sec-uid.yaml b/pkg/config/analysis/analyzers/testdata/pod-sec-uid.yaml
+index 3c1f198f40..2830ad24e4 100644
+--- a/pkg/config/analysis/analyzers/testdata/pod-sec-uid.yaml
++++ b/pkg/config/analysis/analyzers/testdata/pod-sec-uid.yaml
+@@ -7,7 +7,7 @@ metadata:
+     version: v2
+ spec:
+   securityContext:
+-    runAsUser: 1337
++    runAsUser: 64535
+   containers:
+   - name: helloworld
+     image: docker.io/istio/examples-helloworld-v2
+diff --git a/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-absolute-override.yaml b/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-absolute-override.yaml
+index a2986e87c1..74cf917f74 100644
+--- a/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-absolute-override.yaml
++++ b/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-absolute-override.yaml
+@@ -25,7 +25,7 @@ data:
+         - "-z"
+         - "15006"
+         - "-u"
+-        - 1337
++        - 64535
+         - "-m"
+         - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+         - "-i"
+@@ -300,12 +300,12 @@ data:
+           capabilities:
+             add:
+             - NET_ADMIN
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{ else -}}
+           {{ if .Values.global.sds.enabled }}
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{- end }}
+-          runAsUser: 1337
++          runAsUser: 64535
+           {{- end }}
+         resources:
+           {{ if or (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyCPU`) (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyMemory`) -}}
+diff --git a/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-with-revision-canary.yaml b/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-with-revision-canary.yaml
+index 5fcb799fc0..63c8d7c4f6 100644
+--- a/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-with-revision-canary.yaml
++++ b/pkg/config/analysis/analyzers/testdata/sidecar-injector-configmap-with-revision-canary.yaml
+@@ -25,7 +25,7 @@ data:
+         - "-z"
+         - "15006"
+         - "-u"
+-        - 1337
++        - 64535
+         - "-m"
+         - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+         - "-i"
+@@ -300,12 +300,12 @@ data:
+           capabilities:
+             add:
+             - NET_ADMIN
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{ else -}}
+           {{ if .Values.global.sds.enabled }}
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           {{- end }}
+-          runAsUser: 1337
++          runAsUser: 64535
+           {{- end }}
+         resources:
+           {{ if or (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyCPU`) (isset .ObjectMeta.Annotations `sidecar.istio.io/proxyMemory`) -}}
+diff --git a/pkg/config/analysis/msg/messages.gen.go b/pkg/config/analysis/msg/messages.gen.go
+index e239114477..9c0cb3d892 100755
+--- a/pkg/config/analysis/msg/messages.gen.go
++++ b/pkg/config/analysis/msg/messages.gen.go
+@@ -145,8 +145,8 @@ var (
+ 	LocalhostListener = diag.NewMessageType(diag.Error, "IST0143", "Port %v is exposed in a Service but listens on localhost. It will not be exposed to other pods.")
+ 
+ 	// InvalidApplicationUID defines a diag.MessageType for message "InvalidApplicationUID".
+-	// Description: Application pods should not run as user ID (UID) 1337
+-	InvalidApplicationUID = diag.NewMessageType(diag.Warning, "IST0144", "User ID (UID) 1337 is reserved for the sidecar proxy.")
++	// Description: Application pods should not run as user ID (UID) 64535
++	InvalidApplicationUID = diag.NewMessageType(diag.Warning, "IST0144", "User ID (UID) 64535 is reserved for the sidecar proxy.")
+ 
+ 	// ConflictingGateways defines a diag.MessageType for message "ConflictingGateways".
+ 	// Description: Gateway should not have the same selector, port and matched hosts of server
+diff --git a/pkg/config/analysis/msg/messages.yaml b/pkg/config/analysis/msg/messages.yaml
+index dd2de7890b..54bfa13d5b 100644
+--- a/pkg/config/analysis/msg/messages.yaml
++++ b/pkg/config/analysis/msg/messages.yaml
+@@ -388,8 +388,8 @@ messages:
+   - name: "InvalidApplicationUID"
+     code: IST0144
+     level: Warning
+-    description: "Application pods should not run as user ID (UID) 1337"
+-    template: "User ID (UID) 1337 is reserved for the sidecar proxy."
++    description: "Application pods should not run as user ID (UID) 64535"
++    template: "User ID (UID) 64535 is reserved for the sidecar proxy."
+ 
+   - name: "ConflictingGateways"
+     code: IST0145
+diff --git a/pkg/envoy/proxy.go b/pkg/envoy/proxy.go
+index 576234fc54..217d8892b5 100644
+--- a/pkg/envoy/proxy.go
++++ b/pkg/envoy/proxy.go
+@@ -209,8 +209,8 @@ func (e *envoy) Run(abort <-chan error) error {
+ 	if e.AgentIsRoot {
+ 		cmd.SysProcAttr = &syscall.SysProcAttr{}
+ 		cmd.SysProcAttr.Credential = &syscall.Credential{
+-			Uid: 1337,
+-			Gid: 1337,
++			Uid: 64535,
++			Gid: 64535,
+ 		}
+ 	}
+ 
+diff --git a/pkg/istio-agent/agent.go b/pkg/istio-agent/agent.go
+index d77709e70a..6fb1dfc1b0 100644
+--- a/pkg/istio-agent/agent.go
++++ b/pkg/istio-agent/agent.go
+@@ -328,7 +328,7 @@ func (a *Agent) initializeEnvoyAgent(_ context.Context) error {
+ 	a.envoyOpts.SkipDeprecatedLogs = a.cfg.EnvoySkipDeprecatedLogs
+ 
+ 	// Checking only uid should be sufficient - but tests also run as root and
+-	// will break due to permission errors if we start envoy as 1337.
++	// will break due to permission errors if we start envoy as 64535.
+ 	// This is a mode used for permission-less docker, where iptables can't be
+ 	// used.
+ 	a.envoyOpts.AgentIsRoot = os.Getuid() == 0 && strings.HasSuffix(a.cfg.DNSAddr, ":53")
+diff --git a/pkg/kube/inject/inject.go b/pkg/kube/inject/inject.go
+index d875f44783..0d6fd41845 100644
+--- a/pkg/kube/inject/inject.go
++++ b/pkg/kube/inject/inject.go
+@@ -904,7 +904,7 @@ func updateClusterEnvs(container *corev1.Container, newKVs map[string]string) {
+ }
+ 
+ // GetProxyIDs returns the UID and GID to be used in the RunAsUser and RunAsGroup fields in the template
+-// Inspects the namespace metadata for hints and fallbacks to the usual value of 1337.
++// Inspects the namespace metadata for hints and fallbacks to the usual value of 64535.
+ func GetProxyIDs(namespace *corev1.Namespace) (uid int64, gid int64) {
+ 	uid = constants.DefaultProxyUIDInt
+ 	gid = constants.DefaultProxyUIDInt
+diff --git a/pkg/kube/inject/testdata/inject/auth.non-default-service-account.yaml.injected b/pkg/kube/inject/testdata/inject/auth.non-default-service-account.yaml.injected
+index 8d6f4371ce..43273368e1 100644
+--- a/pkg/kube/inject/testdata/inject/auth.non-default-service-account.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/auth.non-default-service-account.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/auth.yaml.injected b/pkg/kube/inject/testdata/inject/auth.yaml.injected
+index 62a7f85966..ded328625d 100644
+--- a/pkg/kube/inject/testdata/inject/auth.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/auth.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/cronjob.yaml.injected b/pkg/kube/inject/testdata/inject/cronjob.yaml.injected
+index 9e5a5a6325..159be48b62 100644
+--- a/pkg/kube/inject/testdata/inject/cronjob.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/cronjob.yaml.injected
+@@ -132,9 +132,9 @@ spec:
+                 - ALL
+               privileged: false
+               readOnlyRootFilesystem: true
+-              runAsGroup: 1337
++              runAsGroup: 64535
+               runAsNonRoot: true
+-              runAsUser: 1337
++              runAsUser: 64535
+             startupProbe:
+               failureThreshold: 600
+               httpGet:
+@@ -167,7 +167,7 @@ spec:
+             - -z
+             - "15006"
+             - -u
+-            - "1337"
++            - "64535"
+             - -m
+             - REDIRECT
+             - -i
+diff --git a/pkg/kube/inject/testdata/inject/daemonset.yaml.injected b/pkg/kube/inject/testdata/inject/daemonset.yaml.injected
+index 80b1747669..fad14e0e1b 100644
+--- a/pkg/kube/inject/testdata/inject/daemonset.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/daemonset.yaml.injected
+@@ -136,9 +136,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -171,7 +171,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/deploymentconfig-multi.yaml.injected b/pkg/kube/inject/testdata/inject/deploymentconfig-multi.yaml.injected
+index 0b736f0ef6..b5d6ced2b8 100644
+--- a/pkg/kube/inject/testdata/inject/deploymentconfig-multi.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/deploymentconfig-multi.yaml.injected
+@@ -151,9 +151,9 @@ items:
+               - ALL
+             privileged: false
+             readOnlyRootFilesystem: true
+-            runAsGroup: 1337
++            runAsGroup: 64535
+             runAsNonRoot: true
+-            runAsUser: 1337
++            runAsUser: 64535
+           startupProbe:
+             failureThreshold: 600
+             httpGet:
+@@ -186,7 +186,7 @@ items:
+           - -z
+           - "15006"
+           - -u
+-          - "1337"
++          - "64535"
+           - -m
+           - REDIRECT
+           - -i
+diff --git a/pkg/kube/inject/testdata/inject/deploymentconfig-with-canonical-service-label.yaml.injected b/pkg/kube/inject/testdata/inject/deploymentconfig-with-canonical-service-label.yaml.injected
+index 0853d2ddbb..1c1d7b21e5 100644
+--- a/pkg/kube/inject/testdata/inject/deploymentconfig-with-canonical-service-label.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/deploymentconfig-with-canonical-service-label.yaml.injected
+@@ -137,9 +137,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -172,7 +172,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/deploymentconfig.yaml.injected b/pkg/kube/inject/testdata/inject/deploymentconfig.yaml.injected
+index 78bfadc063..7b8f6b5f5a 100644
+--- a/pkg/kube/inject/testdata/inject/deploymentconfig.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/deploymentconfig.yaml.injected
+@@ -136,9 +136,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -171,7 +171,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/enable-core-dump.yaml.injected b/pkg/kube/inject/testdata/inject/enable-core-dump.yaml.injected
+index 62a7f85966..ded328625d 100644
+--- a/pkg/kube/inject/testdata/inject/enable-core-dump.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/enable-core-dump.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/explicit-security-context.yaml b/pkg/kube/inject/testdata/inject/explicit-security-context.yaml
+index 459e6dd6dd..05be812ce8 100644
+--- a/pkg/kube/inject/testdata/inject/explicit-security-context.yaml
++++ b/pkg/kube/inject/testdata/inject/explicit-security-context.yaml
+@@ -14,6 +14,6 @@ spec:
+       containers:
+       - name: hello
+         image: "fake.docker.io/google-samples/hello-go-gke:1.0"
+-      # We expect this to get overwritten to 1337
++      # We expect this to get overwritten to 64535
+       securityContext:
+         fsGroup: 1234
+diff --git a/pkg/kube/inject/testdata/inject/explicit-security-context.yaml.injected b/pkg/kube/inject/testdata/inject/explicit-security-context.yaml.injected
+index f2152f01ac..681ac513ac 100644
+--- a/pkg/kube/inject/testdata/inject/explicit-security-context.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/explicit-security-context.yaml.injected
+@@ -129,9 +129,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -164,7 +164,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/format-duration.yaml.injected b/pkg/kube/inject/testdata/inject/format-duration.yaml.injected
+index d86d949a69..cc16dc70dd 100644
+--- a/pkg/kube/inject/testdata/inject/format-duration.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/format-duration.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/frontend.yaml.injected b/pkg/kube/inject/testdata/inject/frontend.yaml.injected
+index b8e8e4aa6a..b784fd940a 100644
+--- a/pkg/kube/inject/testdata/inject/frontend.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/frontend.yaml.injected
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -190,7 +190,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/gateway-with-default-container.yaml.injected b/pkg/kube/inject/testdata/inject/gateway-with-default-container.yaml.injected
+index 112484d5a2..701c4fc027 100644
+--- a/pkg/kube/inject/testdata/inject/gateway-with-default-container.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/gateway-with-default-container.yaml.injected
+@@ -142,8 +142,8 @@ spec:
+           timeoutSeconds: 3
+         resources: {}
+         securityContext:
+-          runAsGroup: 1337
+-          runAsUser: 1337
++          runAsGroup: 64535
++          runAsUser: 64535
+         volumeMounts:
+         - mountPath: /var/run/secrets/workload-spiffe-uds
+           name: workload-socket
+diff --git a/pkg/kube/inject/testdata/inject/gateway.yaml.injected b/pkg/kube/inject/testdata/inject/gateway.yaml.injected
+index 6f14bc8f05..f756a6bd47 100644
+--- a/pkg/kube/inject/testdata/inject/gateway.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/gateway.yaml.injected
+@@ -113,8 +113,8 @@ spec:
+           timeoutSeconds: 3
+         resources: {}
+         securityContext:
+-          runAsGroup: 1337
+-          runAsUser: 1337
++          runAsGroup: 64535
++          runAsUser: 64535
+         volumeMounts:
+         - mountPath: /var/run/secrets/workload-spiffe-uds
+           name: workload-socket
+diff --git a/pkg/kube/inject/testdata/inject/hello-always.yaml.injected b/pkg/kube/inject/testdata/inject/hello-always.yaml.injected
+index 7a9c6aab10..52e876c8fb 100644
+--- a/pkg/kube/inject/testdata/inject/hello-always.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-always.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-cncf-networks.yaml.injected b/pkg/kube/inject/testdata/inject/hello-cncf-networks.yaml.injected
+index acf5984b47..a8ff3b1d92 100644
+--- a/pkg/kube/inject/testdata/inject/hello-cncf-networks.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-cncf-networks.yaml.injected
+@@ -143,9 +143,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -178,7 +178,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -208,9 +208,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+       volumes:
+       - name: workload-socket
+       - name: credential-socket
+diff --git a/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks-json.yaml.injected b/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks-json.yaml.injected
+index 74640e0975..6d95f5e26e 100644
+--- a/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks-json.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks-json.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -209,9 +209,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+       volumes:
+       - name: workload-socket
+       - name: credential-socket
+diff --git a/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks.yaml.injected b/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks.yaml.injected
+index 293a602f2a..0a2750bca0 100644
+--- a/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-existing-cncf-networks.yaml.injected
+@@ -143,9 +143,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -178,7 +178,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -208,9 +208,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+       volumes:
+       - name: workload-socket
+       - name: credential-socket
+diff --git a/pkg/kube/inject/testdata/inject/hello-image-pull-secret.yaml.injected b/pkg/kube/inject/testdata/inject/hello-image-pull-secret.yaml.injected
+index e6459e82e7..032e91f523 100644
+--- a/pkg/kube/inject/testdata/inject/hello-image-pull-secret.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-image-pull-secret.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-image-secrets-in-values.yaml.injected b/pkg/kube/inject/testdata/inject/hello-image-secrets-in-values.yaml.injected
+index c1d83bf7a8..2ae68a223d 100644
+--- a/pkg/kube/inject/testdata/inject/hello-image-secrets-in-values.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-image-secrets-in-values.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-mount-mtls-certs.yaml.injected b/pkg/kube/inject/testdata/inject/hello-mount-mtls-certs.yaml.injected
+index b20c55d236..a534a85334 100644
+--- a/pkg/kube/inject/testdata/inject/hello-mount-mtls-certs.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-mount-mtls-certs.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -176,7 +176,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-mtls-not-ready.yaml.injected b/pkg/kube/inject/testdata/inject/hello-mtls-not-ready.yaml.injected
+index bd72b92c9c..45a2c95e86 100644
+--- a/pkg/kube/inject/testdata/inject/hello-mtls-not-ready.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-mtls-not-ready.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-multi.yaml.injected b/pkg/kube/inject/testdata/inject/hello-multi.yaml.injected
+index e322dcd98f..83c93623c7 100644
+--- a/pkg/kube/inject/testdata/inject/hello-multi.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-multi.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -381,9 +381,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -416,7 +416,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-multiple-image-secrets.yaml.injected b/pkg/kube/inject/testdata/inject/hello-multiple-image-secrets.yaml.injected
+index 592988d70e..b09fc27556 100644
+--- a/pkg/kube/inject/testdata/inject/hello-multiple-image-secrets.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-multiple-image-secrets.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -176,7 +176,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-namespace.yaml.injected b/pkg/kube/inject/testdata/inject/hello-namespace.yaml.injected
+index 5e9a4c6dde..060440dec2 100644
+--- a/pkg/kube/inject/testdata/inject/hello-namespace.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-namespace.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-never.yaml.injected b/pkg/kube/inject/testdata/inject/hello-never.yaml.injected
+index bfa06d032d..7f7d025ab5 100644
+--- a/pkg/kube/inject/testdata/inject/hello-never.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-never.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes-localhost.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes-localhost.yaml.injected
+index ae732188e2..9ded12ed70 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes-localhost.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes-localhost.yaml.injected
+@@ -166,9 +166,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -201,7 +201,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes-noProxyHoldApplication-ProxyConfig.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes-noProxyHoldApplication-ProxyConfig.yaml.injected
+index 99faf349dd..07efafde2f 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes-noProxyHoldApplication-ProxyConfig.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes-noProxyHoldApplication-ProxyConfig.yaml.injected
+@@ -142,9 +142,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -206,7 +206,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes-proxyHoldApplication-ProxyConfig.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes-proxyHoldApplication-ProxyConfig.yaml.injected
+index da0b0ab85f..c41e324d1b 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes-proxyHoldApplication-ProxyConfig.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes-proxyHoldApplication-ProxyConfig.yaml.injected
+@@ -142,9 +142,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -206,7 +206,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes-with-flag-set-in-annotation.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes-with-flag-set-in-annotation.yaml.injected
+index 860c1049dd..75e6449c7e 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes-with-flag-set-in-annotation.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes-with-flag-set-in-annotation.yaml.injected
+@@ -165,9 +165,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -200,7 +200,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes-with-flag-unset-in-annotation.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes-with-flag-unset-in-annotation.yaml.injected
+index bd6b8d7713..daa33c54d1 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes-with-flag-unset-in-annotation.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes-with-flag-unset-in-annotation.yaml.injected
+@@ -160,9 +160,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -195,7 +195,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes.proxyHoldsApplication.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes.proxyHoldsApplication.yaml.injected
+index 6f9462bf71..37b0ecc2c1 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes.proxyHoldsApplication.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes.proxyHoldsApplication.yaml.injected
+@@ -141,9 +141,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -214,7 +214,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-probes.yaml.injected b/pkg/kube/inject/testdata/inject/hello-probes.yaml.injected
+index 4259a7a2e6..a19fefe8a5 100644
+--- a/pkg/kube/inject/testdata/inject/hello-probes.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-probes.yaml.injected
+@@ -173,9 +173,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -208,7 +208,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-proxy-override.yaml.injected b/pkg/kube/inject/testdata/inject/hello-proxy-override.yaml.injected
+index c4e8f92d7f..00c92bcb5a 100644
+--- a/pkg/kube/inject/testdata/inject/hello-proxy-override.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-proxy-override.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-readiness.yaml.injected b/pkg/kube/inject/testdata/inject/hello-readiness.yaml.injected
+index f44d7be06e..5e42712696 100644
+--- a/pkg/kube/inject/testdata/inject/hello-readiness.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-readiness.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-template-in-values.yaml.injected b/pkg/kube/inject/testdata/inject/hello-template-in-values.yaml.injected
+index 62a7f85966..ded328625d 100644
+--- a/pkg/kube/inject/testdata/inject/hello-template-in-values.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-template-in-values.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-tproxy.yaml.injected b/pkg/kube/inject/testdata/inject/hello-tproxy.yaml.injected
+index b88b94f33b..a69b6f258f 100644
+--- a/pkg/kube/inject/testdata/inject/hello-tproxy.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-tproxy.yaml.injected
+@@ -140,7 +140,7 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: false
+           runAsUser: 0
+         startupProbe:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - TPROXY
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello-tracing-disabled.yaml.injected b/pkg/kube/inject/testdata/inject/hello-tracing-disabled.yaml.injected
+index 899e5cb25e..87ce067bf2 100644
+--- a/pkg/kube/inject/testdata/inject/hello-tracing-disabled.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello-tracing-disabled.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello.proxyHoldsApplication.yaml.injected b/pkg/kube/inject/testdata/inject/hello.proxyHoldsApplication.yaml.injected
+index 9b1c0174eb..31039d79a8 100644
+--- a/pkg/kube/inject/testdata/inject/hello.proxyHoldsApplication.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello.proxyHoldsApplication.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello.yaml.cni.injected b/pkg/kube/inject/testdata/inject/hello.yaml.cni.injected
+index 657e70802c..d9ec164deb 100644
+--- a/pkg/kube/inject/testdata/inject/hello.yaml.cni.injected
++++ b/pkg/kube/inject/testdata/inject/hello.yaml.cni.injected
+@@ -145,9 +145,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -180,7 +180,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -210,9 +210,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+       volumes:
+       - name: workload-socket
+       - name: credential-socket
+diff --git a/pkg/kube/inject/testdata/inject/hello.yaml.injected b/pkg/kube/inject/testdata/inject/hello.yaml.injected
+index 62a7f85966..ded328625d 100644
+--- a/pkg/kube/inject/testdata/inject/hello.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/hello.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/hello.yaml.proxyImageName.injected b/pkg/kube/inject/testdata/inject/hello.yaml.proxyImageName.injected
+index 82d0a5c740..f5768d7633 100644
+--- a/pkg/kube/inject/testdata/inject/hello.yaml.proxyImageName.injected
++++ b/pkg/kube/inject/testdata/inject/hello.yaml.proxyImageName.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/https-probes.yaml.injected b/pkg/kube/inject/testdata/inject/https-probes.yaml.injected
+index 52cb3d71c8..62b89f4e96 100644
+--- a/pkg/kube/inject/testdata/inject/https-probes.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/https-probes.yaml.injected
+@@ -165,9 +165,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -200,7 +200,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/job.yaml.injected b/pkg/kube/inject/testdata/inject/job.yaml.injected
+index 6bb63302a3..da4a467d39 100644
+--- a/pkg/kube/inject/testdata/inject/job.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/job.yaml.injected
+@@ -130,9 +130,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -165,7 +165,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/kubevirtInterfaces.yaml.injected b/pkg/kube/inject/testdata/inject/kubevirtInterfaces.yaml.injected
+index f9cb6b74f5..a74b7f17cc 100644
+--- a/pkg/kube/inject/testdata/inject/kubevirtInterfaces.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/kubevirtInterfaces.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/kubevirtInterfaces_list.yaml.injected b/pkg/kube/inject/testdata/inject/kubevirtInterfaces_list.yaml.injected
+index 410c8e1434..5ad509d065 100644
+--- a/pkg/kube/inject/testdata/inject/kubevirtInterfaces_list.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/kubevirtInterfaces_list.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/list-frontend.yaml.injected b/pkg/kube/inject/testdata/inject/list-frontend.yaml.injected
+index 339abe7cd5..dec921e34a 100644
+--- a/pkg/kube/inject/testdata/inject/list-frontend.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/list-frontend.yaml.injected
+@@ -156,9 +156,9 @@ items:
+               - ALL
+             privileged: false
+             readOnlyRootFilesystem: true
+-            runAsGroup: 1337
++            runAsGroup: 64535
+             runAsNonRoot: true
+-            runAsUser: 1337
++            runAsUser: 64535
+           startupProbe:
+             failureThreshold: 600
+             httpGet:
+@@ -191,7 +191,7 @@ items:
+           - -z
+           - "15006"
+           - -u
+-          - "1337"
++          - "64535"
+           - -m
+           - REDIRECT
+           - -i
+diff --git a/pkg/kube/inject/testdata/inject/list.yaml.injected b/pkg/kube/inject/testdata/inject/list.yaml.injected
+index dac59c88b2..1dab5eeec3 100644
+--- a/pkg/kube/inject/testdata/inject/list.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/list.yaml.injected
+@@ -142,9 +142,9 @@ items:
+               - ALL
+             privileged: false
+             readOnlyRootFilesystem: true
+-            runAsGroup: 1337
++            runAsGroup: 64535
+             runAsNonRoot: true
+-            runAsUser: 1337
++            runAsUser: 64535
+           startupProbe:
+             failureThreshold: 600
+             httpGet:
+@@ -177,7 +177,7 @@ items:
+           - -z
+           - "15006"
+           - -u
+-          - "1337"
++          - "64535"
+           - -m
+           - REDIRECT
+           - -i
+@@ -382,9 +382,9 @@ items:
+               - ALL
+             privileged: false
+             readOnlyRootFilesystem: true
+-            runAsGroup: 1337
++            runAsGroup: 64535
+             runAsNonRoot: true
+-            runAsUser: 1337
++            runAsUser: 64535
+           startupProbe:
+             failureThreshold: 600
+             httpGet:
+@@ -417,7 +417,7 @@ items:
+           - -z
+           - "15006"
+           - -u
+-          - "1337"
++          - "64535"
+           - -m
+           - REDIRECT
+           - -i
+diff --git a/pkg/kube/inject/testdata/inject/merge-probers.yaml b/pkg/kube/inject/testdata/inject/merge-probers.yaml
+index 3319502ce9..e2dcda518e 100644
+--- a/pkg/kube/inject/testdata/inject/merge-probers.yaml
++++ b/pkg/kube/inject/testdata/inject/merge-probers.yaml
+@@ -130,9 +130,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         volumeMounts:
+         - mountPath: /var/run/secrets/workload-spiffe-uds
+           name: workload-socket
+@@ -202,7 +202,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/merge-probers.yaml.injected b/pkg/kube/inject/testdata/inject/merge-probers.yaml.injected
+index 3a9a40d907..1eb9b82afa 100644
+--- a/pkg/kube/inject/testdata/inject/merge-probers.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/merge-probers.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -223,7 +223,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/multi-container.yaml.injected b/pkg/kube/inject/testdata/inject/multi-container.yaml.injected
+index 49d8afb0a8..1f5259df26 100644
+--- a/pkg/kube/inject/testdata/inject/multi-container.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/multi-container.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/multi-init.yaml.injected b/pkg/kube/inject/testdata/inject/multi-init.yaml.injected
+index 87f11ebe42..b042098022 100644
+--- a/pkg/kube/inject/testdata/inject/multi-init.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/multi-init.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -187,7 +187,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/multiple-templates.yaml.injected b/pkg/kube/inject/testdata/inject/multiple-templates.yaml.injected
+index df9b082340..6a43c20ae5 100644
+--- a/pkg/kube/inject/testdata/inject/multiple-templates.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/multiple-templates.yaml.injected
+@@ -131,9 +131,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -166,7 +166,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/named_port.yaml.injected b/pkg/kube/inject/testdata/inject/named_port.yaml.injected
+index c4be48c82e..3c5b75bd87 100644
+--- a/pkg/kube/inject/testdata/inject/named_port.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/named_port.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/native-sidecar-opt-in.yaml.injected b/pkg/kube/inject/testdata/inject/native-sidecar-opt-in.yaml.injected
+index 2784746f63..968a2f63fe 100644
+--- a/pkg/kube/inject/testdata/inject/native-sidecar-opt-in.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/native-sidecar-opt-in.yaml.injected
+@@ -32,7 +32,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+@@ -179,9 +179,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+diff --git a/pkg/kube/inject/testdata/inject/native-sidecar-opt-out.yaml.injected b/pkg/kube/inject/testdata/inject/native-sidecar-opt-out.yaml.injected
+index a00b4d303f..77900380d1 100644
+--- a/pkg/kube/inject/testdata/inject/native-sidecar-opt-out.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/native-sidecar-opt-out.yaml.injected
+@@ -125,9 +125,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -160,7 +160,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/native-sidecar.yaml.injected b/pkg/kube/inject/testdata/inject/native-sidecar.yaml.injected
+index 9d5f1c1d3c..62181ca252 100644
+--- a/pkg/kube/inject/testdata/inject/native-sidecar.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/native-sidecar.yaml.injected
+@@ -31,7 +31,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+@@ -178,9 +178,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+diff --git a/pkg/kube/inject/testdata/inject/one_container.yaml.injected b/pkg/kube/inject/testdata/inject/one_container.yaml.injected
+index ded0447ce7..6920c8700d 100644
+--- a/pkg/kube/inject/testdata/inject/one_container.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/one_container.yaml.injected
+@@ -148,9 +148,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -183,7 +183,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/only-proxy-container.yaml.injected b/pkg/kube/inject/testdata/inject/only-proxy-container.yaml.injected
+index 32814c2700..7c5aeb6d64 100644
+--- a/pkg/kube/inject/testdata/inject/only-proxy-container.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/only-proxy-container.yaml.injected
+@@ -124,9 +124,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -159,7 +159,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/pod.yaml.injected b/pkg/kube/inject/testdata/inject/pod.yaml.injected
+index 73c3123a0e..42c13b04a2 100644
+--- a/pkg/kube/inject/testdata/inject/pod.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/pod.yaml.injected
+@@ -124,9 +124,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -159,7 +159,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/prometheus-scrape.yaml.injected b/pkg/kube/inject/testdata/inject/prometheus-scrape.yaml.injected
+index cd20b6254e..777683a1e3 100644
+--- a/pkg/kube/inject/testdata/inject/prometheus-scrape.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/prometheus-scrape.yaml.injected
+@@ -122,9 +122,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -157,7 +157,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/prometheus-scrape2.yaml.injected b/pkg/kube/inject/testdata/inject/prometheus-scrape2.yaml.injected
+index c97bf83623..1c6657438c 100644
+--- a/pkg/kube/inject/testdata/inject/prometheus-scrape2.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/prometheus-scrape2.yaml.injected
+@@ -122,9 +122,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -157,7 +157,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/proxy-override-args-native.yaml.injected b/pkg/kube/inject/testdata/inject/proxy-override-args-native.yaml.injected
+index 89c0be739a..852e133f42 100644
+--- a/pkg/kube/inject/testdata/inject/proxy-override-args-native.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/proxy-override-args-native.yaml.injected
+@@ -38,7 +38,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+@@ -179,9 +179,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+diff --git a/pkg/kube/inject/testdata/inject/proxy-override-args.yaml.injected b/pkg/kube/inject/testdata/inject/proxy-override-args.yaml.injected
+index 1d536224cb..8d0529f225 100644
+--- a/pkg/kube/inject/testdata/inject/proxy-override-args.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/proxy-override-args.yaml.injected
+@@ -127,9 +127,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -162,7 +162,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/proxy-override-runas.yaml b/pkg/kube/inject/testdata/inject/proxy-override-runas.yaml
+index a6645e8cd4..556c67ed80 100644
+--- a/pkg/kube/inject/testdata/inject/proxy-override-runas.yaml
++++ b/pkg/kube/inject/testdata/inject/proxy-override-runas.yaml
+@@ -17,6 +17,6 @@ spec:
+       - name: istio-proxy
+         image: auto
+         securityContext:
+-          # iptables rules must honor this value, and must not use 1337
++          # iptables rules must honor this value, and must not use 64535
+           runAsUser: 1234
+           runAsGroup: 4321
+diff --git a/pkg/kube/inject/testdata/inject/ready_live.yaml.injected b/pkg/kube/inject/testdata/inject/ready_live.yaml.injected
+index 9ae0f1278a..d92b53aede 100644
+--- a/pkg/kube/inject/testdata/inject/ready_live.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/ready_live.yaml.injected
+@@ -164,9 +164,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -199,7 +199,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/ready_only.yaml.injected b/pkg/kube/inject/testdata/inject/ready_only.yaml.injected
+index 718f351ed2..e525505dc4 100644
+--- a/pkg/kube/inject/testdata/inject/ready_only.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/ready_only.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/replicaset.yaml.injected b/pkg/kube/inject/testdata/inject/replicaset.yaml.injected
+index 6d9242a07a..0fc862d348 100644
+--- a/pkg/kube/inject/testdata/inject/replicaset.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/replicaset.yaml.injected
+@@ -133,9 +133,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -168,7 +168,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/replicationcontroller.yaml.injected b/pkg/kube/inject/testdata/inject/replicationcontroller.yaml.injected
+index ed765cb86e..fdba3d6913 100644
+--- a/pkg/kube/inject/testdata/inject/replicationcontroller.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/replicationcontroller.yaml.injected
+@@ -132,9 +132,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -167,7 +167,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces.yaml.injected b/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces.yaml.injected
+index df6bb92fb7..a8e924efb8 100644
+--- a/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces_list.yaml.injected b/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces_list.yaml.injected
+index 6ef129a680..e34b493025 100644
+--- a/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces_list.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/reroute-virtual-interfaces_list.yaml.injected
+@@ -139,9 +139,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -174,7 +174,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/resource_annotations.yaml.injected b/pkg/kube/inject/testdata/inject/resource_annotations.yaml.injected
+index 239a767280..86e03a2333 100644
+--- a/pkg/kube/inject/testdata/inject/resource_annotations.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/resource_annotations.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/startup_live.yaml.injected b/pkg/kube/inject/testdata/inject/startup_live.yaml.injected
+index f758b684a7..aeb01a777b 100644
+--- a/pkg/kube/inject/testdata/inject/startup_live.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/startup_live.yaml.injected
+@@ -164,9 +164,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -199,7 +199,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/startup_only.yaml.injected b/pkg/kube/inject/testdata/inject/startup_only.yaml.injected
+index 0bbbee8f84..989dac1115 100644
+--- a/pkg/kube/inject/testdata/inject/startup_only.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/startup_only.yaml.injected
+@@ -144,9 +144,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -179,7 +179,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/startup_ready_live.yaml.injected b/pkg/kube/inject/testdata/inject/startup_ready_live.yaml.injected
+index cdf516c0a2..294cbb20f4 100644
+--- a/pkg/kube/inject/testdata/inject/startup_ready_live.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/startup_ready_live.yaml.injected
+@@ -172,9 +172,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -207,7 +207,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/statefulset.yaml.injected b/pkg/kube/inject/testdata/inject/statefulset.yaml.injected
+index 194470083c..d3a5796ba3 100644
+--- a/pkg/kube/inject/testdata/inject/statefulset.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/statefulset.yaml.injected
+@@ -141,9 +141,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -176,7 +176,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/status_annotations.yaml.injected b/pkg/kube/inject/testdata/inject/status_annotations.yaml.injected
+index 2f3dc3e914..a01b8db4a5 100644
+--- a/pkg/kube/inject/testdata/inject/status_annotations.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/status_annotations.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -175,7 +175,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/status_annotations_zeroport.yaml.injected b/pkg/kube/inject/testdata/inject/status_annotations_zeroport.yaml.injected
+index 7b1d616145..fbe5bd3662 100644
+--- a/pkg/kube/inject/testdata/inject/status_annotations_zeroport.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/status_annotations_zeroport.yaml.injected
+@@ -132,9 +132,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         volumeMounts:
+         - mountPath: /var/run/secrets/workload-spiffe-uds
+           name: workload-socket
+@@ -160,7 +160,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/status_params.yaml.injected b/pkg/kube/inject/testdata/inject/status_params.yaml.injected
+index c97f357e23..31b9d8b753 100644
+--- a/pkg/kube/inject/testdata/inject/status_params.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/status_params.yaml.injected
+@@ -135,9 +135,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -170,7 +170,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/tcp-probes.yaml.injected b/pkg/kube/inject/testdata/inject/tcp-probes.yaml.injected
+index 1c164060d3..5250029099 100644
+--- a/pkg/kube/inject/testdata/inject/tcp-probes.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/tcp-probes.yaml.injected
+@@ -148,9 +148,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -183,7 +183,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/traffic-annotations-empty-includes.yaml.injected b/pkg/kube/inject/testdata/inject/traffic-annotations-empty-includes.yaml.injected
+index 03805ad1ce..b02dce7901 100644
+--- a/pkg/kube/inject/testdata/inject/traffic-annotations-empty-includes.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/traffic-annotations-empty-includes.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/traffic-annotations-wildcards.yaml.injected b/pkg/kube/inject/testdata/inject/traffic-annotations-wildcards.yaml.injected
+index f6e96d04a3..ef0884b725 100644
+--- a/pkg/kube/inject/testdata/inject/traffic-annotations-wildcards.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/traffic-annotations-wildcards.yaml.injected
+@@ -138,9 +138,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -173,7 +173,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/traffic-annotations.yaml.injected b/pkg/kube/inject/testdata/inject/traffic-annotations.yaml.injected
+index 394c72b6e1..d31a95ce2b 100644
+--- a/pkg/kube/inject/testdata/inject/traffic-annotations.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/traffic-annotations.yaml.injected
+@@ -146,9 +146,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -181,7 +181,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/traffic-params-empty-includes.yaml.injected b/pkg/kube/inject/testdata/inject/traffic-params-empty-includes.yaml.injected
+index ec42c4188b..775665fef2 100644
+--- a/pkg/kube/inject/testdata/inject/traffic-params-empty-includes.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/traffic-params-empty-includes.yaml.injected
+@@ -134,9 +134,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -169,7 +169,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/traffic-params.yaml.injected b/pkg/kube/inject/testdata/inject/traffic-params.yaml.injected
+index 238f50d122..5d7564c403 100644
+--- a/pkg/kube/inject/testdata/inject/traffic-params.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/traffic-params.yaml.injected
+@@ -127,9 +127,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         volumeMounts:
+         - mountPath: /var/run/secrets/workload-spiffe-uds
+           name: workload-socket
+@@ -155,7 +155,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/truncate-canonical-name-custom-controller-pod.yaml.injected b/pkg/kube/inject/testdata/inject/truncate-canonical-name-custom-controller-pod.yaml.injected
+index aafa5ea401..53c7e61760 100644
+--- a/pkg/kube/inject/testdata/inject/truncate-canonical-name-custom-controller-pod.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/truncate-canonical-name-custom-controller-pod.yaml.injected
+@@ -131,9 +131,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -166,7 +166,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/truncate-canonical-name-pod.yaml.injected b/pkg/kube/inject/testdata/inject/truncate-canonical-name-pod.yaml.injected
+index 50946f9077..bad387ba57 100644
+--- a/pkg/kube/inject/testdata/inject/truncate-canonical-name-pod.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/truncate-canonical-name-pod.yaml.injected
+@@ -124,9 +124,9 @@ spec:
+         - ALL
+       privileged: false
+       readOnlyRootFilesystem: true
+-      runAsGroup: 1337
++      runAsGroup: 64535
+       runAsNonRoot: true
+-      runAsUser: 1337
++      runAsUser: 64535
+     startupProbe:
+       failureThreshold: 600
+       httpGet:
+@@ -159,7 +159,7 @@ spec:
+     - -z
+     - "15006"
+     - -u
+-    - "1337"
++    - "64535"
+     - -m
+     - REDIRECT
+     - -i
+diff --git a/pkg/kube/inject/testdata/inject/two_container.yaml.injected b/pkg/kube/inject/testdata/inject/two_container.yaml.injected
+index de5fc02315..0f7ce85026 100644
+--- a/pkg/kube/inject/testdata/inject/two_container.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/two_container.yaml.injected
+@@ -155,9 +155,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -190,7 +190,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/pkg/kube/inject/testdata/inject/user-volume.yaml.injected b/pkg/kube/inject/testdata/inject/user-volume.yaml.injected
+index 90e3b57934..9979b7f8bb 100644
+--- a/pkg/kube/inject/testdata/inject/user-volume.yaml.injected
++++ b/pkg/kube/inject/testdata/inject/user-volume.yaml.injected
+@@ -140,9 +140,9 @@ spec:
+             - ALL
+           privileged: false
+           readOnlyRootFilesystem: true
+-          runAsGroup: 1337
++          runAsGroup: 64535
+           runAsNonRoot: true
+-          runAsUser: 1337
++          runAsUser: 64535
+         startupProbe:
+           failureThreshold: 600
+           httpGet:
+@@ -180,7 +180,7 @@ spec:
+         - -z
+         - "15006"
+         - -u
+-        - "1337"
++        - "64535"
+         - -m
+         - REDIRECT
+         - -i
+diff --git a/security/pkg/nodeagent/util/util.go b/security/pkg/nodeagent/util/util.go
+index 176e5eaa03..1109022a2d 100644
+--- a/security/pkg/nodeagent/util/util.go
++++ b/security/pkg/nodeagent/util/util.go
+@@ -55,7 +55,7 @@ func OutputKeyCertToDir(dir string, privateKey, certChain, rootCert []byte) erro
+ 	certFileMode := os.FileMode(0o600)
+ 	if k8sInCluster.Get() != "" {
+ 		// If this is running on k8s, give more permission to the file certs.
+-		// This is typically used to share the certs with non-proxy containers in the pod which does not run as root or 1337.
++		// This is typically used to share the certs with non-proxy containers in the pod which does not run as root or 64535.
+ 		// For example, prometheus server could use proxy provisioned certs to scrape application metrics through mTLS.
+ 		certFileMode = os.FileMode(0o644)
+ 	}
+diff --git a/tools/istio-iptables/pkg/capture/run_test.go b/tools/istio-iptables/pkg/capture/run_test.go
+index 41bd3fbe34..1d8cbb8eda 100644
+--- a/tools/istio-iptables/pkg/capture/run_test.go
++++ b/tools/istio-iptables/pkg/capture/run_test.go
+@@ -89,8 +89,8 @@ func getCommonTestCases() []struct {
+ 				cfg.DryRun = true
+ 				cfg.RedirectDNS = true
+ 				cfg.DNSServersV4 = []string{"127.0.0.53"}
+-				cfg.ProxyGID = "1337"
+-				cfg.ProxyUID = "1337"
++				cfg.ProxyGID = "64535"
++				cfg.ProxyUID = "64535"
+ 				cfg.ExcludeInterfaces = "not-istio-nic"
+ 				cfg.EnableIPv6 = true
+ 			},
+diff --git a/tools/istio-iptables/pkg/capture/testdata/basic-exclude-nic.golden b/tools/istio-iptables/pkg/capture/testdata/basic-exclude-nic.golden
+index 47739f6a2b..10abab30e2 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/basic-exclude-nic.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/basic-exclude-nic.golden
+@@ -12,12 +12,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/drop-invalid.golden b/tools/istio-iptables/pkg/capture/testdata/drop-invalid.golden
+index 1cc483a43e..adc1df956a 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/drop-invalid.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/drop-invalid.golden
+@@ -15,12 +15,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/empty.golden b/tools/istio-iptables/pkg/capture/testdata/empty.golden
+index 41b6ce814c..7dd478facd 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/empty.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/empty.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/host-ipv4-loopback-cidr.golden b/tools/istio-iptables/pkg/capture/testdata/host-ipv4-loopback-cidr.golden
+index 6d055a13e2..4f3fd20969 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/host-ipv4-loopback-cidr.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/host-ipv4-loopback-cidr.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/8 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/8 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/8 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/8 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/8 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-include.golden b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-include.golden
+index 7e0aa8cf7c..538b2b8230 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-include.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-include.golden
+@@ -13,12 +13,12 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp --dport 31000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-tproxy.golden b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-tproxy.golden
+index db04427054..6ffad9f52a 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-tproxy.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-tproxy.golden
+@@ -14,8 +14,8 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp --dport 31000 -j ISTIO_TPROXY
+ -A PREROUTING -p tcp -m mark --mark 1337 -j CONNMARK --save-mark
+ -A OUTPUT -p tcp -o lo -m mark --mark 1337 -j RETURN
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 1337 -j MARK --set-mark 1338
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 1337 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 64535 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 64535 -j MARK --set-mark 1338
+ -A OUTPUT -p tcp -m connmark --mark 1337 -j CONNMARK --restore-mark
+ -I ISTIO_INBOUND 1 -p tcp -m mark --mark 1337 -j RETURN
+ -I ISTIO_INBOUND 2 -p tcp -s 127.0.0.6/32 -i lo -j RETURN
+@@ -31,12 +31,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard-tproxy.golden b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard-tproxy.golden
+index b72d0fcee1..32a882f833 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard-tproxy.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard-tproxy.golden
+@@ -12,8 +12,8 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp -j ISTIO_TPROXY
+ -A PREROUTING -p tcp -m mark --mark 1337 -j CONNMARK --save-mark
+ -A OUTPUT -p tcp -o lo -m mark --mark 1337 -j RETURN
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 1337 -j MARK --set-mark 1338
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 1337 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 64535 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 64535 -j MARK --set-mark 1338
+ -A OUTPUT -p tcp -m connmark --mark 1337 -j CONNMARK --restore-mark
+ -I ISTIO_INBOUND 1 -p tcp -m mark --mark 1337 -j RETURN
+ -I ISTIO_INBOUND 2 -p tcp -s 127.0.0.6/32 -i lo -j RETURN
+@@ -29,12 +29,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard.golden b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard.golden
+index e4db766ac6..4fd0e6d363 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/inbound-ports-wildcard.golden
+@@ -12,12 +12,12 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipnets-with-kube-virt-interfaces.golden b/tools/istio-iptables/pkg/capture/testdata/ipnets-with-kube-virt-interfaces.golden
+index d91fef4a69..9ced36fbff 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipnets-with-kube-virt-interfaces.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipnets-with-kube-virt-interfaces.golden
+@@ -12,12 +12,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -I PREROUTING 1 -i eth1 -d 10.0.0.0/8 -j ISTIO_REDIRECT
+ -I PREROUTING 1 -i eth2 -d 10.0.0.0/8 -j ISTIO_REDIRECT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipnets.golden b/tools/istio-iptables/pkg/capture/testdata/ipnets.golden
+index d83b61675d..4c5c5cf8fe 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipnets.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipnets.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -d 10.0.0.0/8 -j ISTIO_REDIRECT
+ COMMIT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups-exclude.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups-exclude.golden
+index 0b6a5e3aa0..9ed6f0503c 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups-exclude.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups-exclude.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner 888 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner ftp -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+@@ -30,12 +30,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner 888 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner ftp -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups.golden
+index af6d4ad6d0..c64fd05355 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-dns-outbound-owner-groups.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner ! --gid-owner java -m owner ! --gid-owner 202 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+@@ -29,12 +29,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner ! --gid-owner java -m owner ! --gid-owner 202 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ COMMIT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-empty-inbound-ports.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-empty-inbound-ports.golden
+index 780c8f5f79..5b3407cfe2 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-empty-inbound-ports.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-empty-inbound-ports.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ * nat
+@@ -28,12 +28,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-inbound-ports.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-inbound-ports.golden
+index 9e7d13c0dc..7a20528476 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-inbound-ports.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-inbound-ports.golden
+@@ -13,12 +13,12 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ * nat
+@@ -34,12 +34,12 @@ COMMIT
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-ipnets.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-ipnets.golden
+index 56f5f2bbf3..e8f9310469 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-ipnets.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-ipnets.golden
+@@ -15,12 +15,12 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ * nat
+@@ -38,12 +38,12 @@ COMMIT
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ -A ISTIO_OUTPUT -d 2001:db8::/32 -j RETURN
+ -I PREROUTING 1 -i eth0 -d 2001:db8::/32 -j ISTIO_REDIRECT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-outbound-ports.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-outbound-ports.golden
+index e52fa385fb..3b05bf3b8e 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-outbound-ports.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-outbound-ports.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -p tcp --dport 32000 -j ISTIO_REDIRECT
+ -A ISTIO_OUTPUT -p tcp --dport 31000 -j ISTIO_REDIRECT
+@@ -30,12 +30,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ -A ISTIO_OUTPUT -p tcp --dport 32000 -j ISTIO_REDIRECT
+ -A ISTIO_OUTPUT -p tcp --dport 31000 -j ISTIO_REDIRECT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/ipv6-virt-interfaces.golden b/tools/istio-iptables/pkg/capture/testdata/ipv6-virt-interfaces.golden
+index 1c6084deb2..b0e241695e 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/ipv6-virt-interfaces.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/ipv6-virt-interfaces.golden
+@@ -15,12 +15,12 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ * nat
+@@ -38,12 +38,12 @@ COMMIT
+ -A ISTIO_INBOUND -p tcp --dport 5000 -j ISTIO_IN_REDIRECT
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/kube-virt-interfaces.golden b/tools/istio-iptables/pkg/capture/testdata/kube-virt-interfaces.golden
+index 73e94ea9f8..7b6897a60a 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/kube-virt-interfaces.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/kube-virt-interfaces.golden
+@@ -12,12 +12,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_REDIRECT
+ -I PREROUTING 1 -i eth1 -j ISTIO_REDIRECT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/logging.golden b/tools/istio-iptables/pkg/capture/testdata/logging.golden
+index 41b6ce814c..7dd478facd 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/logging.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/logging.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+ iptables-save
+diff --git a/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups-exclude.golden b/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups-exclude.golden
+index 04a42f22ef..030e0d0237 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups-exclude.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups-exclude.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner 888 -j RETURN
+ -A ISTIO_OUTPUT -m owner --gid-owner ftp -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+diff --git a/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups.golden b/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups.golden
+index 99abc4ffa6..0d629c589c 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/outbound-owner-groups.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -m owner ! --gid-owner java -m owner ! --gid-owner 202 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ COMMIT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/outbound-ports-include.golden b/tools/istio-iptables/pkg/capture/testdata/outbound-ports-include.golden
+index c5b594880f..de2319c316 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/outbound-ports-include.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/outbound-ports-include.golden
+@@ -10,12 +10,12 @@ ip6tables-save
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+ -A ISTIO_OUTPUT -p tcp --dport 32000 -j ISTIO_REDIRECT
+ -A ISTIO_OUTPUT -p tcp --dport 31000 -j ISTIO_REDIRECT
+diff --git a/tools/istio-iptables/pkg/capture/testdata/tproxy.golden b/tools/istio-iptables/pkg/capture/testdata/tproxy.golden
+index 53575003d5..361f2a4b1f 100644
+--- a/tools/istio-iptables/pkg/capture/testdata/tproxy.golden
++++ b/tools/istio-iptables/pkg/capture/testdata/tproxy.golden
+@@ -14,8 +14,8 @@ ip6tables-save
+ -A ISTIO_INBOUND -p tcp -j ISTIO_TPROXY
+ -A PREROUTING -p tcp -m mark --mark 1337 -j CONNMARK --save-mark
+ -A OUTPUT -p tcp -o lo -m mark --mark 1337 -j RETURN
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 1337 -j MARK --set-mark 1338
+--A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 1337 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --uid-owner 64535 -j MARK --set-mark 1338
++-A OUTPUT ! -d 127.0.0.1/32 -p tcp -o lo -m owner --gid-owner 64535 -j MARK --set-mark 1338
+ -A OUTPUT -p tcp -m connmark --mark 1337 -j CONNMARK --restore-mark
+ -I ISTIO_INBOUND 1 -p tcp -m mark --mark 1337 -j RETURN
+ -I ISTIO_INBOUND 2 -p tcp -s 127.0.0.6/32 -i lo -j RETURN
+@@ -34,12 +34,12 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s 127.0.0.6/32 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d 127.0.0.1/32 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -j ISTIO_OUTPUT_DNS
+ -A ISTIO_OUTPUT_DNS -p tcp --dport 53 -d 127.0.0.53/32 -j REDIRECT --to-ports 15053
+ -A ISTIO_OUTPUT_DNS -p udp --dport 53 -d 127.0.0.53/32 -j REDIRECT --to-port 15053
+@@ -51,10 +51,10 @@ COMMIT
+ -N ISTIO_OUTPUT_DNS
+ -N ISTIO_INBOUND
+ -A OUTPUT -j ISTIO_OUTPUT_DNS
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 1337 -j CT --zone 2
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 1337 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 64535 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 64535 -j CT --zone 2
+ -A PREROUTING -j ISTIO_INBOUND
+ -A ISTIO_OUTPUT_DNS -p udp --dport 53 -d 127.0.0.53/32 -j CT --zone 2
+ -A ISTIO_INBOUND -p udp --sport 53 -s 127.0.0.53/32 -j CT --zone 1
+@@ -73,8 +73,8 @@ COMMIT
+ -A ISTIO_INBOUND -p tcp -j ISTIO_TPROXY
+ -A PREROUTING -p tcp -m mark --mark 1337 -j CONNMARK --save-mark
+ -A OUTPUT -p tcp -o lo -m mark --mark 1337 -j RETURN
+--A OUTPUT ! -d ::1/128 -p tcp -o lo -m owner --uid-owner 1337 -j MARK --set-mark 1338
+--A OUTPUT ! -d ::1/128 -p tcp -o lo -m owner --gid-owner 1337 -j MARK --set-mark 1338
++-A OUTPUT ! -d ::1/128 -p tcp -o lo -m owner --uid-owner 64535 -j MARK --set-mark 1338
++-A OUTPUT ! -d ::1/128 -p tcp -o lo -m owner --gid-owner 64535 -j MARK --set-mark 1338
+ -A OUTPUT -p tcp -m connmark --mark 1337 -j CONNMARK --restore-mark
+ -I ISTIO_INBOUND 1 -p tcp -m mark --mark 1337 -j RETURN
+ -I ISTIO_INBOUND 2 -p tcp -s ::6/128 -i lo -j RETURN
+@@ -92,21 +92,21 @@ COMMIT
+ -A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+ -A OUTPUT -j ISTIO_OUTPUT
+ -A ISTIO_OUTPUT -o lo -s ::6/128 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+--A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 1337 -j RETURN
+--A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp -m multiport ! --dports 53,15008 -m owner --uid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --uid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -o lo ! -d ::1/128 -p tcp ! --dport 15008 -m owner --gid-owner 64535 -j ISTIO_IN_REDIRECT
++-A ISTIO_OUTPUT -o lo -p tcp ! --dport 53 -m owner ! --gid-owner 64535 -j RETURN
++-A ISTIO_OUTPUT -m owner --gid-owner 64535 -j RETURN
+ -A ISTIO_OUTPUT -d ::1/128 -j RETURN
+ COMMIT
+ * raw
+ -N ISTIO_OUTPUT_DNS
+ -A OUTPUT -j ISTIO_OUTPUT_DNS
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 1337 -j CT --zone 2
+--A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 1337 -j CT --zone 1
+--A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 1337 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --uid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --uid-owner 64535 -j CT --zone 2
++-A ISTIO_OUTPUT_DNS -p udp --dport 53 -m owner --gid-owner 64535 -j CT --zone 1
++-A ISTIO_OUTPUT_DNS -p udp --sport 15053 -m owner --gid-owner 64535 -j CT --zone 2
+ COMMIT
+ iptables-save
+ ip6tables-save
+diff --git a/tools/istio-iptables/pkg/constants/constants.go b/tools/istio-iptables/pkg/constants/constants.go
+index 6ac71c5619..06c8f579f8 100644
+--- a/tools/istio-iptables/pkg/constants/constants.go
++++ b/tools/istio-iptables/pkg/constants/constants.go
+@@ -116,8 +116,8 @@ Only applies when traffic from all groups (i.e. "*") is being redirected to Envo
+ )
+ 
+ const (
+-	DefaultProxyUID    = "1337"
+-	DefaultProxyUIDInt = int64(1337)
++	DefaultProxyUID    = "64535"
++	DefaultProxyUIDInt = int64(64535)
+ )
+ 
+ // Constants used in environment variables
