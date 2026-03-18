@@ -22,6 +22,20 @@ import:
   owner: {{ $UID }}
   group: {{ $GID }}
   before: install
+- image: tools/bash
+  add: /usr/bin/bash
+  to: /bin/bash
+  before: setup
+- image: tools/procps
+  add: /bin/ps
+  to: /bin/ps
+  before: setup
+- image: tools/coreutils
+  add: /
+  to: /
+  includePaths:
+  - usr/bin/*
+  before: setup
 git:
 {{- include "image mount points" . }}
 imageSpec:
