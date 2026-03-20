@@ -201,10 +201,6 @@ spec:
           name: etc-ingress-controller
         - mountPath: /chroot/validation-chroot/tmp
           name: validation-tmp
-        - mountPath: /chroot/validation-chroot/var/lib/nginx
-          name: var-lib-nginx
-        - mountPath: /chroot/validation-chroot/var/log/nginx
-          name: var-log-nginx
 {{- end }}
         command:
         - /bin/bash
@@ -219,13 +215,11 @@ spec:
           /usr/bin/touch /chroot/var/log/nginx/access.log
           echo -e 'pid /tmp/nginx/nginx.pid;\nerror_log stderr;\nevents {}\nhttp {}\ndaemon off;' > /chroot/etc/ingress-controller/nginx/nginx.conf
 {{- if eq $validationSandboxMode "Standard" }}
-          mkdir -vp /chroot/validation-chroot/var/lib/nginx/body /chroot/validation-chroot/var/lib/nginx/fastcgi /chroot/validation-chroot/var/lib/nginx/proxy \
-            /chroot/validation-chroot/var/lib/nginx/scgi /chroot/validation-chroot/var/lib/nginx/uwsgi /chroot/validation-chroot/etc/ingress-controller/ssl \
-            /chroot/validation-chroot/etc/ingress-controller/lua /chroot/validation-chroot/etc/ingress-controller/nginx \
-            /chroot/validation-chroot/etc/ingress-controller/resolv /chroot/validation-chroot/etc/ingress-controller/geoip \
-            /chroot/validation-chroot/etc/ingress-controller/auth /chroot/validation-chroot/etc/ingress-controller/telemetry \
+          mkdir -vp /chroot/validation-chroot/etc/ingress-controller/ssl /chroot/validation-chroot/etc/ingress-controller/lua \
+            /chroot/validation-chroot/etc/ingress-controller/nginx /chroot/validation-chroot/etc/ingress-controller/resolv \
+            /chroot/validation-chroot/etc/ingress-controller/geoip /chroot/validation-chroot/etc/ingress-controller/auth \
+            /chroot/validation-chroot/etc/ingress-controller/telemetry \
             /chroot/validation-chroot/tmp/nginx
-          /usr/bin/touch /chroot/validation-chroot/var/log/nginx/access.log
           echo -e 'pid /tmp/nginx/nginx.pid;\nerror_log stderr;\nevents {}\nhttp {}\ndaemon off;' > /chroot/validation-chroot/etc/ingress-controller/nginx/nginx.conf
 {{- end }}
         resources:
@@ -442,10 +436,6 @@ spec:
         - mountPath: /chroot/etc/ingress-controller
           name: etc-ingress-controller
 {{- if eq $validationSandboxMode "Standard" }}
-        - mountPath: /chroot/validation-chroot/var/lib/nginx
-          name: var-lib-nginx
-        - mountPath: /chroot/validation-chroot/var/log/nginx
-          name: var-log-nginx
         - mountPath: /chroot/validation-chroot/etc/nginx/ssl/
           name: secret-nginx-auth-tls
         - mountPath: /chroot/validation-chroot/tmp
