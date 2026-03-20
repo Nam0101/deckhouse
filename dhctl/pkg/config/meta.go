@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -653,7 +654,7 @@ func (m *MetaConfig) LoadInstallerVersion() error {
 	rawFile, err := os.ReadFile(app.VersionFile)
 	if err != nil {
 		// TODO param instead of hardcode path
-		rawFile, err = os.ReadFile(app.GetDirConfig().VersionFile)
+		rawFile, err = os.ReadFile(filepath.Join(app.DownloadDirName, "deckhouse", "version"))
 		if err != nil {
 			return err
 		}
