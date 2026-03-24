@@ -128,6 +128,20 @@ spec:
     newPasswordHash: '$2y$10$9fdmv4ewdvzVCTQ01BnAZ.Cy27fdnfNkl.dLIge2YS2gSF4czqXUy'
   user: admin
 `
+		userOperationSelfResetPassword = `
+---
+apiVersion: deckhouse.io/v1
+kind: UserOperation
+metadata:
+  creationTimestamp: "%s"
+  name: user-operation-01
+spec:
+  initiatorType: self
+  type: ResetPassword
+  resetPassword:
+    newPasswordHash: '$2y$10$9fdmv4ewdvzVCTQ01BnAZ.Cy27fdnfNkl.dLIge2YS2gSF4czqXUy'
+  user: admin
+`
 		userOperationInvalidResetPassword = `
 ---
 apiVersion: deckhouse.io/v1
@@ -305,6 +319,23 @@ status:
 
 			pw := f.KubernetesResource("Password", "d8-user-authn", "mfsg22loib4w65lsmnxw24dbnz4s4y3pnxf7fhheqqrcgji")
 			// base64 encoded bcrypt hash from userOperationResetPassword.newPasswordHash
+			Expect(pw.Field("hash").String()).To(Equal("JDJ5JDEwJDlmZG12NGV3ZHZ6VkNUUTAxQm5BWi5DeTI3ZmRuZk5rbC5kTElnZTJZUzJnU0Y0Y3pxWFV5"))
+			Expect(pw.Field("requireResetHashOnNextSuccLogin").Bool()).To(BeTrue())
+
+			uo := f.KubernetesGlobalResource("UserOperation", "user-operation-01")
+			Expect(uo.Field("status.phase").String()).To(Equal("Succeeded"))
+			Expect(uo.Field("status.completedAt").Time()).To(BeTemporally("~", time.Now(), 5*time.Second))
+		})
+
+		It("Reset user's password for self-service request", func() {
+			f.BindingContexts.Set(f.KubeStateSet(
+				fmt.Sprintf(password, nowStr) + fmt.Sprintf(userOperationSelfResetPassword, nowStr),
+			))
+			f.RunHook()
+
+			Expect(f).To(ExecuteSuccessfully())
+
+			pw := f.KubernetesResource("Password", "d8-user-authn", "mfsg22loib4w65lsmnxw24dbnz4s4y3pnxf7fhheqqrcgji")
 			Expect(pw.Field("hash").String()).To(Equal("JDJ5JDEwJDlmZG12NGV3ZHZ6VkNUUTAxQm5BWi5DeTI3ZmRuZk5rbC5kTElnZTJZUzJnU0Y0Y3pxWFV5"))
 			Expect(pw.Field("requireResetHashOnNextSuccLogin").Bool()).To(BeTrue())
 

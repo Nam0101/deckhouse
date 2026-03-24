@@ -10,6 +10,15 @@ rules:
 - apiGroups:
   - deckhouse.io
   resources:
+  - useroperations
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - deckhouse.io
+  resources:
   - dexclients
   - dexauthenticators
   verbs:
@@ -50,6 +59,7 @@ rules:
   resources:
   - users
   - groups
+  - useroperations
   verbs:
   - get
   - list

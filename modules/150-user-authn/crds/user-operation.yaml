@@ -53,9 +53,11 @@ spec:
                     * `admin`: By an administrator.
                     * `system`: Automatically by the system.
                     * `self`: By the user.
+                    
+                    Self-service requests are intended only for `ResetPassword` of the current authenticated user.
                 resetPassword:
                   type: object
-                  description: "Parameters for password reset."
+                  description: "Parameters for password reset. Can be used for self-service only when `initiatorType: self` and `.spec.user` matches the current authenticated user."
                   properties:
                     newPasswordHash:
                       type: string
@@ -139,9 +141,11 @@ spec:
                     * `admin`: By an administrator.
                     * `system`: Automatically by the system.
                     * `self`: By the user.
+                    
+                    Self-service requests are intended only for `ResetPassword` of the current authenticated user.
                 resetPassword:
                   type: object
-                  description: "Parameters for password reset."
+                  description: "Parameters for password reset. Can be used for self-service only when `initiatorType: self` and `.spec.user` matches the current authenticated user."
                   properties:
                     newPasswordHash:
                       type: string

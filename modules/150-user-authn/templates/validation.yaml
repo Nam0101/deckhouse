@@ -27,6 +27,54 @@ metadata:
 spec:
   policyName: {{ $policyName }}
   validationActions: [Deny]
+{{- $userOperationPolicyName := "useroperations-self-service.deckhouse.io" }}
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicy") }}
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $userOperationPolicyName }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "deckhouse") ) | nindent 2 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["deckhouse.io"]
+        apiVersions: ["*"]
+        operations:  ["CREATE"]
+        resources:   ["useroperations"]
+        scope:       "Cluster"
+  validations:
+    - expression: |
+        authorizer.group("deckhouse.io").resource("users").check("update").allowed()
+        || object.spec.type == "ResetPassword"
+      reason: Forbidden
+      message: "Only administrators may create UserOperation types other than ResetPassword"
+    - expression: |
+        authorizer.group("deckhouse.io").resource("users").check("update").allowed()
+        || (has(object.spec.initiatorType) && object.spec.initiatorType == "self")
+      reason: Forbidden
+      message: "Self-service UserOperation requires .spec.initiatorType=self"
+    - expression: |
+        authorizer.group("deckhouse.io").resource("users").check("update").allowed()
+        || object.spec.user == request.userInfo.username
+      reason: Forbidden
+      messageExpression: "'Self-service UserOperation can target only the current user: ' + string(request.userInfo.username)"
+    - expression: |
+        authorizer.group("deckhouse.io").resource("users").check("update").allowed()
+        || (has(object.spec.resetPassword)
+        && has(object.spec.resetPassword.newPasswordHash)
+        && object.spec.resetPassword.newPasswordHash != "")
+      reason: Forbidden
+      message: "Self-service ResetPassword requires .spec.resetPassword.newPasswordHash"
+---
+apiVersion: {{ include "helm_lib_get_api_version_by_kind" (list . "ValidatingAdmissionPolicyBinding") }}
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $userOperationPolicyName }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "deckhouse") ) | nindent 2 }}
+spec:
+  policyName: {{ $userOperationPolicyName }}
+  validationActions: [Deny]
 {{- if .Values.userAuthn.passwordPolicy }}
 {{- $passwordPolicyName := "user-password-immutable.deckhouse.io" }}
 ---
