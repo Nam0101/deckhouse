@@ -14,10 +14,25 @@
 # Nginx for serving documentation static files
 # Image documentation/web (for website)
 image: {{ .ModuleName }}/{{ .ImageName }}
-fromImage: common/nginx-static
+fromImage: builder/alpine-3.21
 git:
 {{- include "image mount points" . }}
+- add: /docs/documentation/.werf/lua
+  to: /etc/nginx/lua
 import:
+- image: ingress-nginx/controller-1-14-nginx-artifact
+  add: /
+  to: /
+  before: setup
+  includePaths:
+  - etc/nginx
+  - lib/*.so*
+  - usr/lib/*.so*
+  - usr/local/bin
+  - usr/local/lib
+  - usr/local/nginx
+  - usr/local/share/lua
+  - usr/local/share/luajit-2.1
 - image: {{ .ModuleName }}/{{ .ImageName }}/static
   add: /app/_site/documentation
   to: /app/docs-dkp
@@ -37,7 +52,11 @@ import:
   - ru
 imageSpec:
   config:
-    entrypoint: [ "/opt/nginx-static/sbin/nginx", "-e", "/dev/stderr", "-g", "daemon off;" ]
+    entrypoint: [ "/usr/local/nginx/sbin/nginx", "-e", "/dev/stderr", "-g", "daemon off;" ]
+    env:
+      PATH: "$PATH:/usr/local/nginx/sbin:/usr/local/nginx/bin:/usr/local/bin"
+      LUA_PATH: "/usr/local/share/luajit-2.1.0-beta3/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/lib/lua/?.lua;;"
+      LUA_CPATH: "/usr/local/lib/lua/?/?.so;/usr/local/lib/lua/?.so;;"
 ---
 {{ tpl (.Files.Get (printf "%sdocs/documentation/werf-documentation-static.inc.yaml" .ModulePath)) . }}
 {{ tpl (.Files.Get (printf "%sdocs/documentation/werf-modules-static.inc.yaml" .ModulePath)) . }}
