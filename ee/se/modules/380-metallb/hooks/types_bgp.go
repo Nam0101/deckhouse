@@ -1,3 +1,9 @@
+/*
+Copyright 2026 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license.
+See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
+*/
+
 package hooks
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
