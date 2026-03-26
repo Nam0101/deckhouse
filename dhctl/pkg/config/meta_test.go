@@ -20,6 +20,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"text/template"
 
@@ -361,6 +363,9 @@ func TestEnrichProxyData(t *testing.T) {
 
 func TestConfigForBashibleBundleTemplateClusterMasterEndpoints(t *testing.T) {
 	cfg := generateMetaConfigForMetaConfigTest(t, map[string]interface{}{})
+	mingetPath := filepath.Join(t.TempDir(), "minget")
+	require.NoError(t, os.WriteFile(mingetPath, []byte("test-minget"), 0o600))
+	t.Setenv("DHCTL_MINGET_PATH", mingetPath)
 	cfg.ClusterMasterEndpoints = []ClusterMasterEndpoint{
 		{
 			Address:                "127.0.0.1",
@@ -384,6 +389,10 @@ func TestConfigForBashibleBundleTemplateClusterMasterEndpoints(t *testing.T) {
 
 func TestConfigForBashibleBundleTemplateDefaultClusterMasterEndpoints(t *testing.T) {
 	cfg := generateMetaConfigForMetaConfigTest(t, map[string]interface{}{})
+	mingetPath := filepath.Join(t.TempDir(), "minget")
+	expectedMingetBytes := []byte("test-minget")
+	require.NoError(t, os.WriteFile(mingetPath, expectedMingetBytes, 0o600))
+	t.Setenv("DHCTL_MINGET_PATH", mingetPath)
 
 	data, err := cfg.ConfigForBashibleBundleTemplate("10.0.0.2")
 	require.NoError(t, err)
@@ -396,4 +405,12 @@ func TestConfigForBashibleBundleTemplateDefaultClusterMasterEndpoints(t *testing
 		"rppServerPort":          5444,
 		"rppBootstrapServerPort": 4300,
 	}, endpoints[0])
+
+	mingetB64, ok := data["mingetB64"].(string)
+	require.True(t, ok)
+	require.NotEmpty(t, mingetB64)
+
+	mingetBytes, err := base64.StdEncoding.DecodeString(mingetB64)
+	require.NoError(t, err)
+	require.Equal(t, expectedMingetBytes, mingetBytes)
 }
