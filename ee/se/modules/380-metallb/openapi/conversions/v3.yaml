@@ -3,12 +3,12 @@ conversions:
   - del(.bgpPeers, .bgpCommunities, .addressPools)
 description:
   ru: |
-    В версии 3 настройки пулов и BGP вынесены в отдельные Custom Resources. Пожалуйста, удалите следующие поля из `ModuleConfig` `metallb`:
+    Настройки пулов и BGP вынесены в отдельные Custom Resources. Пожалуйста, удалите следующие поля из `ModuleConfig` `metallb`:
       - `.settings.addressPools`
       - `.settings.bgpPeers`
       - `.settings.bgpCommunities`
   en: |
-    In version 3, address pools and BGP settings have been moved to separate Custom Resources. Please remove the following fields from the `metallb` `ModuleConfig`:
+    Address pools and BGP settings have been moved to separate Custom Resources. Please remove the following fields from the `metallb` `ModuleConfig`:
       - `.settings.addressPools`
       - `.settings.bgpPeers`
       - `.settings.bgpCommunities`
