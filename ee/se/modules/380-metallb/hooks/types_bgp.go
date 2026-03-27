@@ -125,6 +125,7 @@ type IPAddressPoolValue struct {
 }
 
 type SecretToCopy struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	Data      map[string]string `json:"data"`
 }

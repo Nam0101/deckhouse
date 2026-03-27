@@ -33,6 +33,7 @@ properties:
         value:
           type: string
   speaker:
+    # TODO: remove after 1.82. Speaker node selector moved to MetalLoadBalancerConfiguration CRD.
     type: object
     required: ["nodeSelector"]
     description: |
@@ -67,6 +68,7 @@ properties:
             value:
               type: string
   bgpPeers:
+    # TODO: remove after 1.82. BGP configuration moved to separate CRDs.
     x-doc-deprecated: true
     type: array
     default: []
@@ -167,6 +169,7 @@ properties:
           description: |
             Authentication password for BGP-routers enforcing TCP MD5 authenticated sessions.
   addressPools:
+    # TODO: remove after 1.82. BGP configuration moved to separate CRDs.
     x-doc-deprecated: true
     type: array
     default: []
@@ -238,6 +241,7 @@ properties:
                   type: string
                 x-doc-example: [["no-advertise"]]
   bgpCommunities:
+    # TODO: remove after 1.82. BGP configuration moved to separate CRDs.
     x-doc-deprecated: true
     type: object
     description: |
