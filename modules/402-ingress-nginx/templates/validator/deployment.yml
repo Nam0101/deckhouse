@@ -7,13 +7,7 @@
 {{- $checksum := toJson $crd | sha256sum }}
 {{- $controllerVersion := $crd.spec.controllerVersion | default $context.Values.ingressNginx.defaultControllerVersion }}
 {{- $resources := $crd.spec.resourcesRequests | default dict }}
-{{- $resourcesVPA := $resources.vpa | default dict }}
-{{- $resourcesVPA_CPU := $resourcesVPA.cpu | default dict }}
-{{- $resourcesVPA_Memory := $resourcesVPA.memory | default dict }}
-{{- $resourcesStatic := $resources.static | default dict }}
-{{- $resourcesStaticLimits := $resourcesStatic.limits | default dict }}
-{{- $hasVPAResourceLimits := or (hasKey $resourcesVPA_CPU "limitRatio") (hasKey $resourcesVPA_Memory "limitRatio") }}
-{{- $hasStaticResourceLimits := or (hasKey $resourcesStaticLimits "cpu") (hasKey $resourcesStaticLimits "memory") }}
+{{- $resourcesManagementCompat := include "ingress_nginx_resources_requests_as_resources_management" $resources | fromYaml }}
 {{- $logLevels := dict "Error" 0 "Warn" 1 "Info" 2 "Extended" 3 "Debug" 4 "Trace" 5 }}
 
 {{- if (has "vertical-pod-autoscaler" $context.Values.global.enabledModules) }}
@@ -25,29 +19,7 @@ metadata:
   namespace: d8-ingress-nginx
   {{ include "helm_lib_module_labels" (list $context (dict "app" "validator" "name" $name)) | nindent 2 }}
 spec:
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: validator-{{ $name }}
-  {{- if eq ($resources.mode | default "") "VPA" }}
-  updatePolicy:
-    updateMode: {{ $resourcesVPA.mode | default "Initial" | quote }}
-  resourcePolicy:
-    containerPolicies:
-      - containerName: validator
-        minAllowed:
-          cpu: {{ $resourcesVPA_CPU.min | default "10m" | quote }}
-          memory: {{ $resourcesVPA_Memory.min | default "50Mi" | quote }}
-        maxAllowed:
-          cpu: {{ $resourcesVPA_CPU.max | default "50m" | quote }}
-          memory: {{ $resourcesVPA_Memory.max | default "200Mi" | quote }}
-        {{- if $hasVPAResourceLimits }}
-        controlledValues: RequestsAndLimits
-        {{- end }}
-  {{- else }}
-  updatePolicy:
-    updateMode: "Off"
-  {{- end }}
+{{ include "helm_lib_resources_management_vpa_spec" (list "apps/v1" "Deployment" (printf "validator-%s" $name) "validator" $resourcesManagementCompat) | nindent 2 }}
 {{- end }}
 ---
 apiVersion: policy/v1
@@ -198,39 +170,7 @@ spec:
             exec:
               command: ["/wait-shutdown"]
         resources:
-          requests:
-            {{- include "helm_lib_module_ephemeral_storage_logs_with_extra" 100 | nindent 12 }}
-            {{- if eq ($resources.mode | default "") "Static" }}
-            cpu: {{ $resourcesStatic.cpu | default "350m" | quote }}
-            memory: {{ $resourcesStatic.memory | default "500Mi" | quote }}
-            {{- else if eq ($resources.mode | default "") "VPA" }}
-            cpu: {{ $resourcesVPA_CPU.min | default "10m" | quote }}
-            memory: {{ $resourcesVPA_Memory.min | default "50Mi" | quote }}
-            {{- else if not $resources }}
-            cpu: "350m"
-            memory: "500Mi"
-            {{- end }}
-          {{- if eq ($resources.mode | default "") "Static" }}
-            {{- if $hasStaticResourceLimits }}
-          limits:
-              {{- if hasKey $resourcesStaticLimits "cpu" }}
-            cpu: {{ $resourcesStaticLimits.cpu | quote }}
-              {{- end }}
-              {{- if hasKey $resourcesStaticLimits "memory" }}
-            memory: {{ $resourcesStaticLimits.memory | quote }}
-              {{- end }}
-            {{- end }}
-          {{- else if and (eq ($resources.mode | default "") "VPA") $hasVPAResourceLimits }}
-          limits:
-            {{- if hasKey $resourcesVPA_CPU "limitRatio" }}
-              {{- $cpuLimitMillicores := round (mulf (include "helm_lib_resources_management_cpu_units_to_millicores" ($resourcesVPA_CPU.min | default "10m")) $resourcesVPA_CPU.limitRatio) 0 | int64 }}
-            cpu: {{ printf "%dm" $cpuLimitMillicores | quote }}
-            {{- end }}
-            {{- if hasKey $resourcesVPA_Memory "limitRatio" }}
-              {{- $memoryLimitBytes := round (mulf (include "helm_lib_resources_management_memory_units_to_bytes" ($resourcesVPA_Memory.min | default "50Mi")) $resourcesVPA_Memory.limitRatio) 0 | int64 }}
-            memory: {{ printf "%d" $memoryLimitBytes | quote }}
-            {{- end }}
-          {{- end }}
+{{ include "helm_lib_resources_management_pod_resources" (list $resourcesManagementCompat "100Mi") | nindent 10 }}
         ports:
           - name: webhook
             containerPort: 8443

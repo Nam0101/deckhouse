@@ -14,13 +14,7 @@ memory: 10Mi
 {{- $kubernetesVersion := $context.Values.global.discovery.kubernetesVersion }}
 
 {{- $resourcesRequests := $crd.spec.resourcesRequests | default dict }}
-{{- $resourcesRequestsVPA := $resourcesRequests.vpa | default dict }}
-{{- $resourcesRequestsVPA_CPU := $resourcesRequestsVPA.cpu | default dict }}
-{{- $resourcesRequestsVPA_Memory := $resourcesRequestsVPA.memory | default dict }}
-{{- $resourcesRequestsStatic := $resourcesRequests.static | default dict }}
-{{- $resourcesRequestsStaticLimits := $resourcesRequestsStatic.limits | default dict }}
-{{- $hasVPAResourceLimits := or (hasKey $resourcesRequestsVPA_CPU "limitRatio") (hasKey $resourcesRequestsVPA_Memory "limitRatio") }}
-{{- $hasStaticResourceLimits := or (hasKey $resourcesRequestsStaticLimits "cpu") (hasKey $resourcesRequestsStaticLimits "memory") }}
+{{- $resourcesManagementCompat := include "ingress_nginx_resources_requests_as_resources_management" $resourcesRequests | fromYaml }}
 {{- $geoIP2 := $crd.spec.geoIP2 | default dict }}
 {{- $geoproxyReady := $context.Values.ingressNginx.internal.geoproxyReady | default false }}
 {{- $hostPort := $crd.spec.hostPort | default dict }}
@@ -47,33 +41,14 @@ metadata:
   namespace: d8-ingress-nginx
 {{ include "helm_lib_module_labels" (list $context (dict "app" "controller" "name" $name )) | nindent 2 }}
 spec:
-  targetRef:
-    apiVersion: "apps.kruise.io/v1alpha1"
-    kind: DaemonSet
-    name: controller-{{ $name }}
-    {{- if eq ($resourcesRequests.mode | default "") "VPA" }}
-  updatePolicy:
-    updateMode: {{ $resourcesRequestsVPA.mode | default "Initial" | quote }}
-  resourcePolicy:
-    containerPolicies:
-    - containerName: controller
-      minAllowed:
-        cpu: {{ $resourcesRequestsVPA_CPU.min | default "10m" | quote }}
-        memory: {{ $resourcesRequestsVPA_Memory.min | default "50Mi" | quote }}
-      maxAllowed:
-        cpu: {{ $resourcesRequestsVPA_CPU.max | default "50m" | quote }}
-        memory: {{ $resourcesRequestsVPA_Memory.max | default "200Mi" | quote }}
-      {{- if $hasVPAResourceLimits }}
-      controlledValues: RequestsAndLimits
-      {{- end }}
-      {{- if $crd.spec.enableIstioSidecar }}
-    - containerName: istio-proxy
-      mode: "Off"
-      {{- end }}
-    {{- else }}
-  updatePolicy:
-    updateMode: "Off"
-    {{- end }}
+  {{- $vpaSpec := include "helm_lib_resources_management_vpa_spec" (list "apps.kruise.io/v1alpha1" "DaemonSet" (printf "controller-%s" $name) "controller" $resourcesManagementCompat) | fromYaml }}
+  {{- if and (eq ($resourcesManagementCompat.mode | default "") "VPA") $crd.spec.enableIstioSidecar }}
+    {{- $resourcePolicy := get $vpaSpec "resourcePolicy" | default (dict) }}
+    {{- $containerPolicies := get $resourcePolicy "containerPolicies" | default (list) }}
+    {{- $_ := set $resourcePolicy "containerPolicies" (append $containerPolicies (dict "containerName" "istio-proxy" "mode" "Off")) }}
+    {{- $_ := set $vpaSpec "resourcePolicy" $resourcePolicy }}
+  {{- end }}
+  {{- $vpaSpec | toYaml | nindent 2 }}
 {{- end }}
 ---
 apiVersion: policy/v1
@@ -342,39 +317,7 @@ spec:
               command:
                 - /wait-shutdown
         resources:
-          requests:
-            {{- include "helm_lib_module_ephemeral_storage_logs_with_extra" 100 | nindent 12 }}
-  {{- if and $loadBalancer (not $resourcesRequests) }}
-            cpu: "350m"
-            memory: "500Mi"
-  {{- else if eq ($resourcesRequests.mode | default "") "Static" }}
-            cpu: {{ $resourcesRequestsStatic.cpu | default "350m" | quote }}
-            memory: {{ $resourcesRequestsStatic.memory | default "500Mi" | quote }}
-  {{- else if eq ($resourcesRequests.mode | default "") "VPA" }}
-            cpu: {{ $resourcesRequestsVPA_CPU.min | default "10m" | quote }}
-            memory: {{ $resourcesRequestsVPA_Memory.min | default "50Mi" | quote }}
-  {{- end }}
-  {{- if eq ($resourcesRequests.mode | default "") "Static" }}
-    {{- if $hasStaticResourceLimits }}
-          limits:
-      {{- if hasKey $resourcesRequestsStaticLimits "cpu" }}
-            cpu: {{ $resourcesRequestsStaticLimits.cpu | quote }}
-      {{- end }}
-      {{- if hasKey $resourcesRequestsStaticLimits "memory" }}
-            memory: {{ $resourcesRequestsStaticLimits.memory | quote }}
-      {{- end }}
-    {{- end }}
-  {{- else if and (eq ($resourcesRequests.mode | default "") "VPA") $hasVPAResourceLimits }}
-          limits:
-    {{- if hasKey $resourcesRequestsVPA_CPU "limitRatio" }}
-      {{- $cpuLimitMillicores := round (mulf (include "helm_lib_resources_management_cpu_units_to_millicores" ($resourcesRequestsVPA_CPU.min | default "10m")) $resourcesRequestsVPA_CPU.limitRatio) 0 | int64 }}
-            cpu: {{ printf "%dm" $cpuLimitMillicores | quote }}
-    {{- end }}
-    {{- if hasKey $resourcesRequestsVPA_Memory "limitRatio" }}
-      {{- $memoryLimitBytes := round (mulf (include "helm_lib_resources_management_memory_units_to_bytes" ($resourcesRequestsVPA_Memory.min | default "50Mi")) $resourcesRequestsVPA_Memory.limitRatio) 0 | int64 }}
-            memory: {{ printf "%d" $memoryLimitBytes | quote }}
-    {{- end }}
-  {{- end }}
+{{ include "helm_lib_resources_management_pod_resources" (list $resourcesManagementCompat "100Mi") | nindent 10 }}
         ports:
         - containerPort: 80
   {{- if and (eq $crd.spec.inlet "HostWithFailover") (not $failover) }}
