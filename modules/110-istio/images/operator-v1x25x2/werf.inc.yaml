@@ -23,15 +23,15 @@ import:
   add: /src/operator/resources
   to: /var/lib/sail-operator/resources
   after: setup
-- image: tools/bash
+- from: {{ index $.Images "tools/bash" }}
   add: /usr/bin/bash
   to: /bin/bash
   before: setup
-- image: tools/procps
+- from: {{ index $.Images "tools/procps" }}
   add: /bin/ps
   to: /bin/ps
   before: setup
-- image: tools/coreutils
+- from: {{ index $.Images "tools/coreutils" }}
   add: /
   to: /
   includePaths:

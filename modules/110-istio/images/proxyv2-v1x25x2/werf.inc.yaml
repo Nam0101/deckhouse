@@ -73,15 +73,15 @@ import:
   add: /d8-curl
   to: /usr/bin/curl
   before: setup
-- image: tools/bash
+- from: {{ index $.Images "tools/bash" }}
   add: /usr/bin/bash
   to: /bin/bash
   before: setup
-- image: tools/procps
+- from: {{ index $.Images "tools/procps" }}
   add: /bin/ps
   to: /bin/ps
   before: setup
-- image: tools/coreutils
+- from: {{ index $.Images "tools/coreutils" }}
   add: /
   to: /
   includePaths:
