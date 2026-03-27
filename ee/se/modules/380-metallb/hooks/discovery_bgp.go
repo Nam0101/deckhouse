@@ -111,7 +111,7 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 		}
 	}
 
-	allSecrets := make(map[string]map[string]string)
+	secrets := make(map[string]map[string]string)
 	for _, s := range input.Snapshots.Get("secrets") {
 		var secret v1.Secret
 		if err := s.UnmarshalTo(&secret); err == nil {
@@ -119,34 +119,30 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 			for k, v := range secret.Data {
 				data[k] = string(v)
 			}
-			allSecrets[fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)] = data
+			secrets[fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)] = data
 		}
 	}
 
-	// Initialize helper structures
-	var (
-		speakerNodeSelectorTerms = make([]v1.NodeSelectorTerm, 0)
-		peerMap                  = make(map[string]MetalLoadBalancerBGPPeer)
-		secretsSet               = make(map[string]SecretToCopy)
-		bfdSet                   = make(map[string]BFDProfileValue)
-	)
-
 	// Map peers by name for quick lookup
+	peersByName := make(map[string]MetalLoadBalancerBGPPeer, len(peers))
 	for _, p := range peers {
-		peerMap[p.Name] = p
+		peersByName[p.Name] = p
 	}
 
 	// Process address pools
 	outPools := make([]IPAddressPoolValue, 0, len(pools))
-	outPeers := make([]BGPPeerValue, 0)
-	outAdvs := make([]BGPAdvertisementValue, 0)
-
 	for _, pool := range pools {
 		outPools = append(outPools, IPAddressPoolValue{
 			Name:      pool.Name,
 			Addresses: pool.Spec.Addresses,
 		})
 	}
+
+	outPeers := make([]BGPPeerValue, 0)
+	outAdvs := make([]BGPAdvertisementValue, 0)
+	speakerNodeSelectorTerms := make([]v1.NodeSelectorTerm, 0)
+	secretsByName := make(map[string]SecretToCopy)
+	bfdProfilesByName := make(map[string]BFDProfileValue)
 
 	// Main processing loop: advertisements, peers, BFD, and secrets
 	for _, cfg := range configs {
@@ -195,7 +191,7 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 
 		// Generate peers
 		for _, peerName := range cfg.Spec.BGP.PeerNames {
-			peer, ok := peerMap[peerName]
+			peer, ok := peersByName[peerName]
 			if !ok {
 				continue
 			}
@@ -206,9 +202,9 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 				s := *peer.Spec.PasswordSecretRef
 				secretName = fmt.Sprintf("bgp-pwd-%s-%s", s.Namespace, s.Name)
 
-				secretData, found := allSecrets[fmt.Sprintf("%s/%s", s.Namespace, s.Name)]
+				secretData, found := secrets[fmt.Sprintf("%s/%s", s.Namespace, s.Name)]
 				if found {
-					secretsSet[secretName] = SecretToCopy{
+					secretsByName[secretName] = SecretToCopy{
 						Name:      secretName,
 						Namespace: s.Namespace, // original namespace, though not used in template
 						Data:      secretData,
@@ -220,7 +216,7 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 			var bfdName string
 			if peer.Spec.BFD != nil {
 				bfdName = fmt.Sprintf("bfd-%s", peer.Name)
-				bfdSet[bfdName] = BFDProfileValue{
+				bfdProfilesByName[bfdName] = BFDProfileValue{
 					Name:             bfdName,
 					ReceiveInterval:  peer.Spec.BFD.ReceiveInterval,
 					TransmitInterval: peer.Spec.BFD.TransmitInterval,
@@ -303,13 +299,13 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 	}
 
 	// Finalize secrets and BFD profiles
-	outSecrets := make([]SecretToCopy, 0, len(secretsSet))
-	for _, v := range secretsSet {
+	outSecrets := make([]SecretToCopy, 0, len(secretsByName))
+	for _, v := range secretsByName {
 		outSecrets = append(outSecrets, v)
 	}
 
-	outBFDs := make([]BFDProfileValue, 0, len(bfdSet))
-	for _, v := range bfdSet {
+	outBFDs := make([]BFDProfileValue, 0, len(bfdProfilesByName))
+	for _, v := range bfdProfilesByName {
 		outBFDs = append(outBFDs, v)
 	}
 
