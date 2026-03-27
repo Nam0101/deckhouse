@@ -135,6 +135,10 @@ properties:
               type: string
             namespace:
               type: string
+            data:
+              type: object
+              additionalProperties:
+                type: string
 x-examples:
   - internal:
       l2lbservices:
