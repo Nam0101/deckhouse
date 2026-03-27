@@ -14,7 +14,7 @@ spec:
     plural: metalloadbalancerpools
     singular: metalloadbalancerpool
     shortNames:
-    - mlbp
+      - mlbp
   scope: Cluster
   versions:
     - name: v1alpha1

@@ -14,7 +14,7 @@ spec:
     plural: metalloadbalancerbgppeers
     singular: metalloadbalancerbgppeer
     shortNames:
-    - mlbbp
+      - mlbbp
   scope: Cluster
   versions:
     - name: v1alpha1
@@ -60,6 +60,10 @@ spec:
                   description: |-
                     The requested BGP hold time.
                 passwordSecretRef:
+                  description: |-
+                    Reference to the Secret containing the password for BGP session authentication.
+
+                    **Important:** the target Secret MUST have the label `network.deckhouse.io/metallb-bgp-password: "true"`.
                   type: object
                   properties:
                     name:
@@ -69,8 +73,6 @@ spec:
                   required:
                     - name
                     - namespace
-                  description: |-
-                    A reference to a Secret containing the password for BGP session authentication.
                 sourceAddresses:
                   type: array
                   items:

@@ -29,6 +29,8 @@ spec:
                 passwordSecretRef:
                   description: |-
                     Ссылка на Secret, содержащий пароль для аутентификации BGP-сессии.
+
+                    **Важно:** целевой секрет обязательно должен иметь лейбл `network.deckhouse.io/metallb-bgp-password: "true"`.
                   properties:
                     name:
                       description: |-
