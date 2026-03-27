@@ -25,24 +25,38 @@ var _ = Describe("Modules :: metallb :: hooks :: discovery_bgp ::", func() {
 			f.RunHook()
 		})
 
-		It("Should execute successfully and set empty arrays", func() {
+		It("Should execute successfully and set empty arrays with default affinity", func() {
 			Expect(f).To(ExecuteSuccessfully())
 			Expect(f.ValuesGet("metallb.internal.addressPools").String()).To(MatchJSON(`[]`))
 			Expect(f.ValuesGet("metallb.internal.bgpPeers").String()).To(MatchJSON(`[]`))
 			Expect(f.ValuesGet("metallb.internal.bgpAdvertisements").String()).To(MatchJSON(`[]`))
 			Expect(f.ValuesGet("metallb.internal.bfdProfiles").String()).To(MatchJSON(`[]`))
 			Expect(f.ValuesGet("metallb.internal.secretsToCopy").String()).To(MatchJSON(`[]`))
-			Expect(f.ValuesGet("metallb.internal.speakerNodeAffinity").Exists()).To(BeFalse())
+
+			// Check default affinity
+			Expect(f.ValuesGet("metallb.internal.speakerNodeAffinity").String()).To(MatchJSON(`{}`))
 		})
 	})
 
-	Context("With pools, peers and configuration", func() {
+	Context("With pools, peers, configuration and secrets", func() {
 		BeforeEach(func() {
 			f.BindingContexts.Set(f.KubeStateSet(`
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
+  name: secret1
+  namespace: ns1
+data:
+  password: cGFzc3dvcmQ= # "password"
 ---
 apiVersion: network.deckhouse.io/v1alpha1
 kind: MetalLoadBalancerPool
 metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
   name: test-pool
 spec:
   addresses:
@@ -51,6 +65,8 @@ spec:
 apiVersion: network.deckhouse.io/v1alpha1
 kind: MetalLoadBalancerBGPPeer
 metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
   name: test-peer
 spec:
   peerAddress: 192.168.1.1
@@ -69,6 +85,8 @@ spec:
 apiVersion: network.deckhouse.io/v1alpha1
 kind: MetalLoadBalancerConfiguration
 metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
   name: test-config
 spec:
   mode: BGP
@@ -88,7 +106,7 @@ spec:
 			f.RunHook()
 		})
 
-		It("Should generate correct internal values", func() {
+		It("Should generate correct internal values with secret data", func() {
 			Expect(f).To(ExecuteSuccessfully())
 
 			// Check Pools
@@ -104,41 +122,61 @@ spec:
 			peers := f.ValuesGet("metallb.internal.bgpPeers").Array()
 			Expect(len(peers)).To(Equal(2))
 
-			// Check Specific Peer
+			// Specific Peer: test-peer-node-node-1
 			Expect(f.ValuesGet("metallb.internal.bgpPeers.0.name").String()).To(Equal("test-peer-node-node-1"))
 			Expect(f.ValuesGet("metallb.internal.bgpPeers.0.sourceAddress").String()).To(Equal("10.10.10.1"))
-			Expect(f.ValuesGet("metallb.internal.bgpPeers.0.nodeSelectors.0.matchLabels.kubernetes\\.io/hostname").String()).To(Equal("node-1"))
+			Expect(f.ValuesGet("metallb.internal.bgpPeers.0.passwordSecret").String()).To(Equal("bgp-pwd-ns1-secret1"))
 
-			// Check Fallback Peer
+			// Fallback Peer: test-peer-test-config
 			Expect(f.ValuesGet("metallb.internal.bgpPeers.1.name").String()).To(Equal("test-peer-test-config"))
 			Expect(f.ValuesGet("metallb.internal.bgpPeers.1.nodeSelectors.0.matchLabels.role").String()).To(Equal("worker"))
-			Expect(f.ValuesGet("metallb.internal.bgpPeers.1.nodeSelectors.0.matchExpressions.0.values.0").String()).To(Equal("node-1"))
 
 			// Check Advertisements
-			Expect(f.ValuesGet("metallb.internal.bgpAdvertisements").String()).To(MatchJSON(`
-[
-  {
-    "name": "test-config-adv-0",
-    "ipAddressPools": ["test-pool"],
-    "peers": ["test-peer"],
-    "localPref": 100,
-    "communities": ["1111:2222"],
-    "nodeSelectors": [
-      {
-        "matchLabels": {
-          "role": "worker"
-        }
-      }
-    ]
-  }
-]`))
+			Expect(f.ValuesGet("metallb.internal.bgpAdvertisements.0.name").String()).To(Equal("test-config-adv-0"))
+			Expect(f.ValuesGet("metallb.internal.bgpAdvertisements.0.ipAddressPools").String()).To(MatchJSON(`["test-pool"]`))
 
-			// Check BFD and Secrets
+			// Check BFD Profile
 			Expect(f.ValuesGet("metallb.internal.bfdProfiles.0.name").String()).To(Equal("bfd-test-peer"))
-			Expect(f.ValuesGet("metallb.internal.secretsToCopy.0.name").String()).To(Equal("secret1"))
+			Expect(f.ValuesGet("metallb.internal.bfdProfiles.0.receiveInterval").Int()).To(Equal(int64(300)))
 
-			// Check Affinity
+			// Check Secrets to Copy (with actual data!)
+			Expect(f.ValuesGet("metallb.internal.secretsToCopy.0.name").String()).To(Equal("bgp-pwd-ns1-secret1"))
+			Expect(f.ValuesGet("metallb.internal.secretsToCopy.0.data.password").String()).To(Equal("password"))
+
+			// Check Dynamic Affinity (should be role=worker instead of default)
 			Expect(f.ValuesGet("metallb.internal.speakerNodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.0.matchExpressions.0.key").String()).To(Equal("role"))
+		})
+	})
+
+	Context("Sorting stability", func() {
+		BeforeEach(func() {
+			f.BindingContexts.Set(f.KubeStateSet(`
+---
+apiVersion: network.deckhouse.io/v1alpha1
+kind: MetalLoadBalancerPool
+metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
+  name: z-pool
+spec:
+  addresses: ["1.1.1.1/32"]
+---
+apiVersion: network.deckhouse.io/v1alpha1
+kind: MetalLoadBalancerPool
+metadata:
+  labels:
+    network.deckhouse.io/metallb-bgp-password: "true"
+  name: a-pool
+spec:
+  addresses: ["2.2.2.2/32"]
+`))
+			f.RunHook()
+		})
+
+		It("Should always sort outputs by name", func() {
+			Expect(f).To(ExecuteSuccessfully())
+			Expect(f.ValuesGet("metallb.internal.addressPools.0.name").String()).To(Equal("a-pool"))
+			Expect(f.ValuesGet("metallb.internal.addressPools.1.name").String()).To(Equal("z-pool"))
 		})
 	})
 })

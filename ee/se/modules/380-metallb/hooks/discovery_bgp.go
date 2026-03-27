@@ -11,12 +11,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/sdk"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-	"github.com/flant/addon-operator/sdk"
 )
 
 var _ = sdk.RegisterFunc(&go_hook.HookConfig{
@@ -39,6 +38,17 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 			ApiVersion: "network.deckhouse.io/v1alpha1",
 			Kind:       "MetalLoadBalancerConfiguration",
 			FilterFunc: filterConfig,
+		},
+		{
+			Name:       "secrets",
+			ApiVersion: "v1",
+			Kind:       "Secret",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network.deckhouse.io/metallb-bgp-password": "true",
+				},
+			},
+			FilterFunc: filterSecret,
 		},
 	},
 }, handleBGP)
@@ -67,7 +77,16 @@ func filterConfig(obj *unstructured.Unstructured) (go_hook.FilterResult, error) 
 	return config, nil
 }
 
+func filterSecret(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+	var secret v1.Secret
+	if err := sdk.FromUnstructured(obj, &secret); err != nil {
+		return nil, err
+	}
+	return secret, nil
+}
+
 func handleBGP(_ context.Context, input *go_hook.HookInput) error {
+	// Collect data from snapshots
 	var pools []MetalLoadBalancerPool
 	for _, p := range input.Snapshots.Get("pools") {
 		var pool MetalLoadBalancerPool
@@ -92,30 +111,44 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 		}
 	}
 
-	peerMap := make(map[string]MetalLoadBalancerBGPPeer)
+	allSecrets := make(map[string]map[string]string)
+	for _, s := range input.Snapshots.Get("secrets") {
+		var secret v1.Secret
+		if err := s.UnmarshalTo(&secret); err == nil {
+			data := make(map[string]string)
+			for k, v := range secret.Data {
+				data[k] = string(v)
+			}
+			allSecrets[fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)] = data
+		}
+	}
+
+	// Initialize helper structures
+	var (
+		speakerNodeSelectorTerms = make([]v1.NodeSelectorTerm, 0)
+		peerMap                  = make(map[string]MetalLoadBalancerBGPPeer)
+		secretsSet               = make(map[string]SecretToCopy)
+		bfdSet                   = make(map[string]BFDProfileValue)
+	)
+
+	// Map peers by name for quick lookup
 	for _, p := range peers {
 		peerMap[p.Name] = p
 	}
 
-	outPools := make([]IPAddressPoolValue, 0)
+	// Process address pools
+	outPools := make([]IPAddressPoolValue, 0, len(pools))
+	outPeers := make([]BGPPeerValue, 0)
+	outAdvs := make([]BGPAdvertisementValue, 0)
+
 	for _, pool := range pools {
 		outPools = append(outPools, IPAddressPoolValue{
 			Name:      pool.Name,
 			Addresses: pool.Spec.Addresses,
 		})
 	}
-	// Sort to keep Helm values stable
-	sort.Slice(outPools, func(i, j int) bool { return outPools[i].Name < outPools[j].Name })
 
-	outPeers := make([]BGPPeerValue, 0)
-	outAdvs := make([]BGPAdvertisementValue, 0)
-	outBFDs := make([]BFDProfileValue, 0)
-	outSecrets := make([]SecretToCopy, 0)
-	speakerNodeSelectorTerms := make([]v1.NodeSelectorTerm, 0)
-
-	secretsSet := make(map[string]SecretToCopy)
-	bfdSet := make(map[string]BFDProfileValue)
-
+	// Main processing loop: advertisements, peers, BFD, and secrets
 	for _, cfg := range configs {
 		if cfg.Spec.Mode != "BGP" {
 			continue
@@ -123,7 +156,7 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 
 		// Collect speaker node selector terms
 		if len(cfg.Spec.NodeSelector) > 0 {
-			var matchExpressions []v1.NodeSelectorRequirement
+			matchExpressions := make([]v1.NodeSelectorRequirement, 0, len(cfg.Spec.NodeSelector))
 			// Ensure deterministic order for matchExpressions
 			var keys []string
 			for k := range cfg.Spec.NodeSelector {
@@ -172,7 +205,15 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 			if peer.Spec.PasswordSecretRef != nil {
 				s := *peer.Spec.PasswordSecretRef
 				secretName = fmt.Sprintf("bgp-pwd-%s-%s", s.Namespace, s.Name)
-				secretsSet[secretName] = SecretToCopy(s)
+
+				secretData, found := allSecrets[fmt.Sprintf("%s/%s", s.Namespace, s.Name)]
+				if found {
+					secretsSet[secretName] = SecretToCopy{
+						Name:      secretName,
+						Namespace: s.Namespace, // original namespace, though not used in template
+						Data:      secretData,
+					}
+				}
 			}
 
 			// Extract BFD if present
@@ -187,7 +228,7 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 					EchoInterval:     peer.Spec.BFD.EchoInterval,
 					EchoMode:         peer.Spec.BFD.EchoMode,
 					PassiveMode:      peer.Spec.BFD.PassiveMode,
-					MinimumTtl:       peer.Spec.BFD.MinimumTtl,
+					MinimumTTL:       peer.Spec.BFD.MinimumTTL,
 				}
 			}
 
@@ -261,24 +302,25 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 		}
 	}
 
+	// Finalize secrets and BFD profiles
+	outSecrets := make([]SecretToCopy, 0, len(secretsSet))
 	for _, v := range secretsSet {
 		outSecrets = append(outSecrets, v)
 	}
-	sort.Slice(outSecrets, func(i, j int) bool { return outSecrets[i].Name < outSecrets[j].Name })
 
+	outBFDs := make([]BFDProfileValue, 0, len(bfdSet))
 	for _, v := range bfdSet {
 		outBFDs = append(outBFDs, v)
 	}
-	sort.Slice(outBFDs, func(i, j int) bool { return outBFDs[i].Name < outBFDs[j].Name })
 
-	// Deduplicate peers by Name, but in this logic they should be mostly unique.
-	// Actually, a peer might be referenced in multiple configs,
-	// which means multiple fallback peers with different names.
-	// That's correct and expected.
+	// Sort all outputs to ensure Helm values stability
+	sort.Slice(outPools, func(i, j int) bool { return outPools[i].Name < outPools[j].Name })
 	sort.Slice(outPeers, func(i, j int) bool { return outPeers[i].Name < outPeers[j].Name })
-
 	sort.Slice(outAdvs, func(i, j int) bool { return outAdvs[i].Name < outAdvs[j].Name })
+	sort.Slice(outBFDs, func(i, j int) bool { return outBFDs[i].Name < outBFDs[j].Name })
+	sort.Slice(outSecrets, func(i, j int) bool { return outSecrets[i].Name < outSecrets[j].Name })
 
+	// Save final values to Helm internal variables
 	input.Values.Set("metallb.internal.addressPools", outPools)
 	input.Values.Set("metallb.internal.bgpPeers", outPeers)
 	input.Values.Set("metallb.internal.bgpAdvertisements", outAdvs)
@@ -292,7 +334,8 @@ func handleBGP(_ context.Context, input *go_hook.HookInput) error {
 			},
 		})
 	} else {
-		input.Values.Remove("metallb.internal.speakerNodeAffinity")
+		// By default (if no specific node selectors are provided), deploy on all nodes.
+		input.Values.Set("metallb.internal.speakerNodeAffinity", map[string]any{})
 	}
 
 	return nil

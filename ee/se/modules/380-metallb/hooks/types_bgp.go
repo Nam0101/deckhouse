@@ -53,7 +53,7 @@ type BFDProfileConfiguration struct {
 	EchoInterval     *int  `json:"echoInterval,omitempty"`
 	EchoMode         *bool `json:"echoMode,omitempty"`
 	PassiveMode      *bool `json:"passiveMode,omitempty"`
-	MinimumTtl       *int  `json:"minimumTtl,omitempty"`
+	MinimumTTL       *int  `json:"minimumTtl,omitempty"`
 }
 
 type MetalLoadBalancerConfiguration struct {
@@ -116,7 +116,7 @@ type BFDProfileValue struct {
 	EchoInterval     *int   `json:"echoInterval,omitempty"`
 	EchoMode         *bool  `json:"echoMode,omitempty"`
 	PassiveMode      *bool  `json:"passiveMode,omitempty"`
-	MinimumTtl       *int   `json:"minimumTtl,omitempty"`
+	MinimumTTL       *int   `json:"minimumTtl,omitempty"`
 }
 
 type IPAddressPoolValue struct {
