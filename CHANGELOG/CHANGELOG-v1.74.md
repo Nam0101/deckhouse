@@ -5,6 +5,7 @@
 
  - #16795 unknown section "metrics-storage"
  - #17702 unknown section "registry-packages"
+ - #18682 missing type
 
 ## Know before update
 
