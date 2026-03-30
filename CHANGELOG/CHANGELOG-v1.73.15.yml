@@ -1,0 +1,46 @@
+candi:
+  fixes:
+    - summary: cve fix for user-authn module
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18679
+ci:
+  fixes:
+    - summary: change users for Yandex and opestack e2e tests
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18763
+cilium-hubble:
+  fixes:
+    - summary: Fixed CVE-2026-33186 in the hubble-ui image.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18721
+cloud-provider-dvp:
+  fixes:
+    - summary: fixe cve
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18599
+common:
+  fixes:
+    - summary: Fixed CVE-2026-33186 in the CoreDNS image.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18724
+      impact: CoreDNS pods will undergo a rolling restart.
+dhctl:
+  fixes:
+    - summary: mitigate CVE-2026-33186
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18610
+registrypackages:
+  fixes:
+    - summary: Added vex with CVE-2026-33186 for kubeadm and kubelet.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18783
+    - summary: Added vex with CVE-2026-33186.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18700
+terraform-manager:
+  fixes:
+    - summary: Fixed critical CVEs in dependencies across all cloud providers
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18599
+tools:
+  fixes:
+    - summary: Added HTTP client proxy support
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18583
+upmeter:
+  fixes:
+    - summary: >-
+        Add proper securityContext to the upmeter probe to meet the restricted security profile
+        constraints.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/18492
+
