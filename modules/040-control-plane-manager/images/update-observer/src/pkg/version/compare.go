@@ -17,41 +17,58 @@ limitations under the License.
 package version
 
 import (
-	"golang.org/x/mod/semver"
+	semver "github.com/Masterminds/semver/v3"
 )
 
-// Compare compares two versions semantically by normalizing them first.
+// Compare compares two versions semantically.
 // Returns -1, 0, or 1 analogous to semver.Compare - 0 if v == w, -1 if v < w, or +1 if v > w.
-// If normalization of either version fails, returns 0 (versions are considered equal).
+// If parsing of either version fails, returns 0 (versions are considered equal).
 func Compare(v, w string) int {
-	vNorm, errV := Normalize(v)
-	wNorm, errW := Normalize(w)
-	if errV != nil || errW != nil {
+	left, errLeft := semver.NewVersion(v)
+	right, errRight := semver.NewVersion(w)
+	if errLeft != nil || errRight != nil {
 		return 0
 	}
-	return semver.Compare(vNorm, wNorm)
+
+	return left.Compare(right)
 }
 
 func GetMax(v, w string) string {
-	switch semver.Compare(v, w) {
-	case -1:
+	verV, errV := semver.NewVersion(v)
+	verW, errW := semver.NewVersion(w)
+
+	if errV != nil && errW != nil {
+		return ""
+	}
+	if errV != nil {
 		return w
-	case 0:
-		return w
-	case 1:
+	}
+	if errW != nil {
 		return v
+	}
+
+	if verV.LessThan(verW) {
+		return w
 	}
 	return v
 }
 
 func GetMin(v, w string) string {
-	switch semver.Compare(v, w) {
-	case -1:
-		return v
-	case 0:
-		return w
-	case 1:
+	verV, errV := semver.NewVersion(v)
+	verW, errW := semver.NewVersion(w)
+
+	if errV != nil && errW != nil {
+		return ""
+	}
+	if errV != nil {
 		return w
 	}
-	return v
+	if errW != nil {
+		return v
+	}
+
+	if verV.LessThan(verW) {
+		return v
+	}
+	return w
 }
