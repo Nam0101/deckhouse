@@ -12,6 +12,7 @@
 
 {{- $context := . }}
 {{- $_ := set $context "ModulePath" "../../" }}
+{{ tpl (.Files.Get (printf "%sdocs/documentation/werf-nginx-lua.inc.yaml" $context.ModulePath)) $context }}
 
 {{- if and (ne $.Env "development") (ne $.Env "module") (ne $.Env "local") }}
 image: site-external-artifacts
@@ -165,7 +166,7 @@ import:
 {{- end }}
 ---
 image: web-frontend
-fromImage: builder/alpine-3.21
+fromImage: docs-nginx-lua-runtime-artifact
 imageSpec:
   config:
     workingDir: "/app"
@@ -180,20 +181,6 @@ git:
 - add: /{{ .ModulePath }}docs/documentation/.werf/lua
   to: /etc/nginx/lua
 import:
-#- image: registry-modules-watcher-artifact
-- image: ingress-nginx/controller-1-14-nginx-artifact
-  add: /
-  to: /
-  before: setup
-  includePaths:
-  - etc/nginx
-  - lib/*.so*
-  - usr/lib/*.so*
-  - usr/local/bin
-  - usr/local/lib
-  - usr/local/nginx
-  - usr/local/share/lua
-  - usr/local/share/luajit-2.1
 - image: web-frontend-artifact
   add: /app/_site
   to: /app

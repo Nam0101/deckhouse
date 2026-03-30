@@ -1,0 +1,28 @@
+- name: Ingress NGINX Controller
+  link: https://github.com/kubernetes/ingress-nginx
+  description: Ingress NGINX controller version used as the source of the docs nginx+lua build recipe.
+  logo: /images/logos/kubernetes.svg
+  license: Apache License 2.0
+  id: ingress-nginx-1-14
+  version: 1.14.4
+
+- name: NGINX
+  link: https://github.com/nginx/nginx
+  description: NGINX source version used in the docs nginx+lua build recipe.
+  license: BSD-2-Clause
+  id: docs-nginx-lua-nginx
+  version: 1.29.5
+
+- name: OpenSSL
+  link: https://github.com/openssl/openssl
+  description: OpenSSL source version used in the docs nginx+lua build recipe.
+  license: Apache License 2.0
+  id: docs-nginx-lua-openssl
+  version: 3.6.0
+
+- name: ingress-nginx deps branch suffix
+  link: https://github.com/kubernetes/ingress-nginx-deps
+  description: ModSecurity deps suffix used for the ingress-nginx-deps branch consumed by the docs nginx+lua build recipe.
+  license: Apache License 2.0
+  id: docs-nginx-lua-modsecurity-deps
+  version: 1.0.4

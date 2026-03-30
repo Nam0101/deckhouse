@@ -1,0 +1,136 @@
+{{- $_ := set . "SOURCE_REPO" (env "SOURCE_REPO" | default "https://github.com") }}
+{{- $_ := set . "OssYamlPath" (printf "%sdocs/documentation/oss.yaml" .ModulePath) -}}
+{{ tpl (.Files.Get (printf "%s.werf/defines/oss-yaml.tmpl" .ModulePath)) . }}
+{{ tpl (.Files.Get (printf "%s.werf/defines/packages-proxies.tmpl" .ModulePath)) . }}
+{{- $controllerVersion := include "get_oss_version_by_id" (list "ingress-nginx-1-14" . ) }}
+{{- $nginxVersion := include "get_oss_version_by_id" (list "docs-nginx-lua-nginx" . ) }}
+{{- $modsecurityDepsVersion := include "get_oss_version_by_id" (list "docs-nginx-lua-modsecurity-deps" . ) }}
+{{- $nginxDepsBranch := printf "controller-v%s-nginx-v%s-modsecurity-v%s" $controllerVersion $nginxVersion $modsecurityDepsVersion }}
+{{- $openSSLVersion := include "get_oss_version_by_id" (list "docs-nginx-lua-openssl" . ) }}
+{{- $commonAltP11Ctx := dict }}
+{{- $_ := set $commonAltP11Ctx "Files" .Files }}
+{{- $_ := set $commonAltP11Ctx "ModulePath" .ModulePath }}
+{{- $_ := set $commonAltP11Ctx "ModuleName" "common" }}
+{{- $_ := set $commonAltP11Ctx "ImageName" "alt-p11" }}
+{{- $_ := set $commonAltP11Ctx "DistroPackagesProxy" .DistroPackagesProxy }}
+{{ tpl (.Files.Get (printf "%smodules/000-common/images/alt-p11/werf.inc.yaml" .ModulePath)) $commonAltP11Ctx }}
+{{- $commonSrcArtifactCtx := dict }}
+{{- $_ := set $commonSrcArtifactCtx "Files" .Files }}
+{{- $_ := set $commonSrcArtifactCtx "ModulePath" .ModulePath }}
+{{- $_ := set $commonSrcArtifactCtx "ModuleName" "common" }}
+{{- $_ := set $commonSrcArtifactCtx "ImageName" "src-artifact" }}
+{{- $_ := set $commonSrcArtifactCtx "DistroPackagesProxy" .DistroPackagesProxy }}
+{{ tpl (.Files.Get (printf "%smodules/000-common/images/src-artifact/werf.inc.yaml" .ModulePath)) $commonSrcArtifactCtx }}
+---
+image: docs-nginx-lua-src-artifact
+fromImage: common/src-artifact
+final: false
+secrets:
+- id: SOURCE_REPO
+  value: {{ .SOURCE_REPO }}
+shell:
+  install:
+  - mkdir -p /src
+  - set -x
+  - git clone -b release-{{ $nginxVersion }} --single-branch --depth=1 $(cat /run/secrets/SOURCE_REPO)/nginx/nginx.git /src/nginx
+  - git clone -b openssl-{{ $openSSLVersion }} --single-branch --depth=1 $(cat /run/secrets/SOURCE_REPO)/openssl/openssl.git /src/openssl
+  - git clone -b {{ $nginxDepsBranch }} --single-branch $(cat /run/secrets/SOURCE_REPO)/kubernetes/ingress-nginx-deps.git /src/nginx-deps
+  - rm -rf /src/nginx/.git /src/openssl/.git /src/nginx-deps/.git
+---
+image: docs-nginx-lua-build-artifact
+fromImage: builder/alpine-3.21
+final: false
+import:
+- image: docs-nginx-lua-src-artifact
+  add: /src
+  to: /src
+  before: install
+shell:
+  beforeInstall:
+  {{- include "alpine packages proxy" . | nindent 2 }}
+  - apk add --no-cache build-base linux-headers pcre-dev zlib-dev perl bash
+  install:
+  - export BUILD_PATH=/src/nginx-deps
+  - export LUAJIT_LIB=/usr/local/lib
+  - export LUAJIT_INC=/usr/local/include/luajit-2.1
+  - cd "$BUILD_PATH/luajit2"
+  - make CCDEBUG=-g
+  - make install
+  - ln -sf /usr/local/bin/luajit /usr/local/bin/lua
+  - ln -sf "$LUAJIT_INC" /usr/local/include/lua
+  - cd /src/nginx
+  - |
+    ./auto/configure \
+      --prefix=/usr/local/nginx \
+      --conf-path=/etc/nginx/nginx.conf \
+      --modules-path=/etc/nginx/modules \
+      --error-log-path=/var/log/nginx/error.log \
+      --http-log-path=/var/log/nginx/access.log \
+      --pid-path=/tmp/nginx.pid \
+      --with-pcre-jit \
+      --with-http_ssl_module \
+      --with-http_v2_module \
+      --with-http_realip_module \
+      --with-http_auth_request_module \
+      --with-http_stub_status_module \
+      --with-http_gzip_static_module \
+      --with-http_gunzip_module \
+      --with-http_sub_module \
+      --with-http_secure_link_module \
+      --with-threads \
+      --with-stream \
+      --with-stream_ssl_module \
+      --with-openssl=/src/openssl \
+      --with-cc-opt="-O2 -fPIC" \
+      --with-ld-opt="-Wl,-rpath,/usr/local/lib" \
+      --add-module=$BUILD_PATH/ngx_devel_kit \
+      --add-module=$BUILD_PATH/lua-nginx-module \
+      --add-module=$BUILD_PATH/stream-lua-nginx-module
+  - make -j4
+  - make install
+  - mkdir -p /var/log/nginx /etc/nginx/lua
+  - cp /src/nginx/conf/mime.types /etc/nginx/mime.types
+  - cd "$BUILD_PATH/lua-resty-core"
+  - make install
+  - cd "$BUILD_PATH/lua-resty-lrucache"
+  - make install
+  - export LUA_INCLUDE_DIR="$LUAJIT_INC"
+  - cd "$BUILD_PATH/lua-cjson"
+  - make all
+  - make install
+---
+image: docs-nginx-lua-runtime-artifact
+fromImage: builder/alpine-3.21
+final: false
+shell:
+  beforeInstall:
+  {{- include "alpine packages proxy" . | nindent 2 }}
+  - apk add --no-cache pcre zlib libgcc
+import:
+- image: docs-nginx-lua-build-artifact
+  add: /etc/nginx
+  to: /etc/nginx
+  before: setup
+- image: docs-nginx-lua-build-artifact
+  add: /usr/local/bin
+  to: /usr/local/bin
+  before: setup
+  includePaths:
+  - lua
+  - luajit
+- image: docs-nginx-lua-build-artifact
+  add: /usr/local/lib
+  to: /usr/local/lib
+  before: setup
+- image: docs-nginx-lua-build-artifact
+  add: /usr/local/nginx
+  to: /usr/local/nginx
+  before: setup
+- image: docs-nginx-lua-build-artifact
+  add: /usr/local/share
+  to: /usr/local/share
+  before: setup
+  includePaths:
+  - lua
+  - luajit-2.1
+---

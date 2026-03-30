@@ -40,14 +40,6 @@ build:
 {{- include "parse_base_images_map" . }}
 ---
 {{- $context := . }}
-# nginx from Ingress controlkl 1.14
-{{ tpl $content $ }}
-
-{{- $_ := set $context "ModuleName" "ingress-nginx" }}
-{{- $_ := set $context "ImageName" "contoller-1-14" }}
-{{- $_ := set $context "ModulePath" "../../" }}
-{{ tpl (.Files.Get "../../modules/402-ingress-nginx/images/controller-1-14/werf.inc.yaml") $context }}
----
 {{- $_ := set $context "ModuleName" "website-docs" }}
 {{- $_ := set $context "ImageName" "builder" }}
 {{- $_ := set $context "ModulePath" "../../" }}

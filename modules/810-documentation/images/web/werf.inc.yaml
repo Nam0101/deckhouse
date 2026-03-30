@@ -9,30 +9,18 @@
 {{- else }}
   {{- $_ := set . "Mode" $.Env }}
 {{- end }}
+{{ tpl (.Files.Get (printf "%sdocs/documentation/werf-nginx-lua.inc.yaml" .ModulePath)) . }}
 
 ---
 # Nginx for serving documentation static files
 # Image documentation/web (for website)
 image: {{ .ModuleName }}/{{ .ImageName }}
-fromImage: builder/alpine-3.21
+fromImage: docs-nginx-lua-runtime-artifact
 git:
 {{- include "image mount points" . }}
 - add: /docs/documentation/.werf/lua
   to: /etc/nginx/lua
 import:
-- image: ingress-nginx/controller-1-14-nginx-artifact
-  add: /
-  to: /
-  before: setup
-  includePaths:
-  - etc/nginx
-  - lib/*.so*
-  - usr/lib/*.so*
-  - usr/local/bin
-  - usr/local/lib
-  - usr/local/nginx
-  - usr/local/share/lua
-  - usr/local/share/luajit-2.1
 - image: {{ .ModuleName }}/{{ .ImageName }}/static
   add: /app/_site/documentation
   to: /app/docs-dkp
